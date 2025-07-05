@@ -44,8 +44,11 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
-export function WalletSelector(walletSortingOptions: WalletSortingOptions) {
+export function WalletSelector(
+  walletSortingOptions: WalletSortingOptions & { className?: string }
+) {
   const { account, connected, disconnect, wallet } = useWallet();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -69,16 +72,22 @@ export function WalletSelector(walletSortingOptions: WalletSortingOptions) {
     }
   }, [account?.address, toast]);
 
+  const glassClass =
+    "backdrop-blur-md bg-white/20 border border-white/30 shadow-lg text-white transition-all duration-200 hover:bg-white/30 hover:text-black";
+
   return connected ? (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button>
+        <Button className={cn(glassClass, walletSortingOptions.className)}>
           {account?.ansName ||
             truncateAddress(account?.address?.toString()) ||
             "Unknown"}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent
+        align="end"
+        className="backdrop-blur-md bg-white/20 border border-white/30 shadow-lg text-black"
+      >
         <DropdownMenuItem onSelect={copyAddress} className="gap-2">
           <Copy className="h-4 w-4" /> Copy address
         </DropdownMenuItem>
@@ -102,7 +111,9 @@ export function WalletSelector(walletSortingOptions: WalletSortingOptions) {
   ) : (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button>Connect a Wallet</Button>
+        <Button className={cn(glassClass, walletSortingOptions.className)}>
+          Connect a Wallet
+        </Button>
       </DialogTrigger>
       <ConnectWalletDialog close={closeDialog} {...walletSortingOptions} />
     </Dialog>

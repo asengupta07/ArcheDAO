@@ -6,6 +6,7 @@ import { Inter as FontSans } from "next/font/google";
 import { PropsWithChildren } from "react";
 import { AutoConnectProvider } from "@/components/AutoConnectProvider";
 import { ReactQueryClientProvider } from "@/components/ReactQueryClientProvider";
+import { WalletSelector } from "@/components/WalletSelector";
 
 const fontSans = FontSans({
   subsets: ["latin"],
@@ -29,7 +30,12 @@ export default function RootLayout({ children }: PropsWithChildren) {
       >
         <AutoConnectProvider>
           <ReactQueryClientProvider>
-            <WalletProvider>{children}</WalletProvider>
+            <WalletProvider>
+              <div className="fixed top-4 right-4 z-50">
+                <WalletSelector className="px-6 py-2 text-base font-semibold" />
+              </div>
+              {children}
+            </WalletProvider>
           </ReactQueryClientProvider>
         </AutoConnectProvider>
       </body>
