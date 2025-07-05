@@ -54,13 +54,13 @@ interface UserProfile {
 
 interface UserDAOEcosystem {
   user_address: string;
-  total_daos_joined: number;
-  total_voting_power: number;
-  total_proposals_created: number;
-  total_tasks_created: number;
-  total_votes_cast: number;
+  total_daos_joined: string;
+  total_voting_power: string;
+  total_proposals_created: string;
+  total_tasks_created: string;
+  total_votes_cast: string;
   daos: DAOEcosystemEntry[];
-  generated_at: number;
+  generated_at: string;
 }
 
 interface DAOEcosystemEntry {
@@ -88,8 +88,8 @@ interface DAOEcosystemEntry {
     is_member: boolean;
     is_governor: boolean;
     is_creator: boolean;
-    voting_power: number;
-    joined_at: number;
+    voting_power: string;
+    join_date: string;
   };
   proposals: any[];
   tasks: any[];
@@ -133,14 +133,11 @@ export default function DashboardPage() {
           resourceType: RESOURCE_TYPES.USER_PROFILE,
         });
         setUserProfile(profileResource.data as UserProfile);
+        console.log("User profile loaded:", profileResource.data);
       } catch (error) {
-        console.log("User profile not found, user might not be registered");
-        toast({
-          title: "Welcome to ArcheDAO!",
-          description: "Use an invite code to join a DAO and get started.",
-        });
-        setLoading(false);
-        return;
+        console.log("User profile not found as resource, trying to get from ecosystem data");
+        // Don't return early - continue to load ecosystem data
+        // The profile might be embedded in the ecosystem data
       }
 
       // Get user's complete DAO ecosystem
@@ -160,18 +157,40 @@ export default function DashboardPage() {
           console.log("Total DAOs joined:", ecosystem.total_daos_joined);
           console.log("DAOs array:", ecosystem.daos);
           setUserEcosystem(ecosystem);
+          
+          // If we have ecosystem data but no profile, create a basic profile
+          if (!userProfile && parseInt(ecosystem.total_daos_joined.toString()) > 0) {
+            console.log("Creating profile from ecosystem data");
+            const firstDAO = ecosystem.daos[0];
+            if (firstDAO) {
+              const basicProfile: UserProfile = {
+                address: account.address.toString(),
+                user_type: firstDAO.user_membership.is_creator ? 2 : 
+                          firstDAO.user_membership.is_governor ? 3 : 0,
+                reputation_score: 100, // Default value
+                contribution_score: 0,
+                is_premium: false,
+                premium_expires: 0,
+                governance_participation: parseInt(ecosystem.total_votes_cast.toString()),
+                voting_power: parseInt(ecosystem.total_voting_power.toString()),
+                                 created_at: parseInt(firstDAO.user_membership.join_date?.toString() || '0'),
+              };
+              setUserProfile(basicProfile);
+              console.log("Created basic profile:", basicProfile);
+            }
+          }
         } else {
           console.log("No ecosystem data returned or empty data");
           // Even if no DAOs joined, we should have an empty ecosystem
           setUserEcosystem({
             user_address: account.address.toString(),
-            total_daos_joined: 0,
-            total_voting_power: 0,
-            total_proposals_created: 0,
-            total_tasks_created: 0,
-            total_votes_cast: 0,
+            total_daos_joined: "0",
+            total_voting_power: "0",
+            total_proposals_created: "0",
+            total_tasks_created: "0",
+            total_votes_cast: "0",
             daos: [],
-            generated_at: Date.now() / 1000,
+            generated_at: (Date.now() / 1000).toString(),
           });
         }
       } catch (error) {
@@ -296,7 +315,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (!userProfile || !userEcosystem) {
+  if (!userProfile || !userEcosystem || parseInt(userEcosystem.total_daos_joined) === 0) {
     return (
       <div className="min-h-screen relative">
         <div className="fixed inset-0 z-0">
@@ -514,7 +533,7 @@ export default function DashboardPage() {
               <CardTitle className="text-xl text-white">Your DAOs</CardTitle>
             </CardHeader>
             <CardContent>
-              {userEcosystem.daos.length === 0 ? (
+              {userEcosystem.daos.length === 0 || parseInt(userEcosystem.total_daos_joined) === 0 ? (
                 <div className="text-center py-8">
                   <div className="p-6 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
                     <p className="text-yellow-300 mb-4">
