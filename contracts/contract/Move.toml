@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = ["Arnab S"]
 
 [addresses]
-dao_portal = "0x075fec9899dcff71a49f1b9359aff60aed36d8b6e2cd186504c0ab247a998afc"
+DAOri = "_"
 
 [dependencies]
 AptosFramework = { git = "https://github.com/aptos-labs/aptos-framework.git", rev = "devnet", subdir = "aptos-framework" }

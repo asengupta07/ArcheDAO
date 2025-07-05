@@ -22,10 +22,10 @@ async function publish() {
   move
     .createObjectAndPublishPackage({
       packageDirectoryPath: "contract",
-      addressName: "dao_portal",
+      addressName: "DAOri",
       namedAddresses: {
         // Publish module to new object, but since we create the object on the fly, we fill in the publisher's account address here
-        dao_portal: process.env.MODULE_PUBLISHER_ACCOUNT_ADDRESS,
+        DAOri: process.env.MODULE_PUBLISHER_ACCOUNT_ADDRESS,
       },
       extraArguments: [`--private-key=${process.env.MODULE_PUBLISHER_ACCOUNT_PRIVATE_KEY}`,`--url=${aptosSDK.NetworkToNodeAPI[process.env.APP_NETWORK]}`],
     })

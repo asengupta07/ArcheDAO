@@ -231,8 +231,31 @@ export default function GovernancePage() {
       </div>
 
       <div className="relative z-10 container mx-auto px-4 py-[8rem] mt-6">
+        {/* Header Section */}
+        <div className="flex justify-between items-start mb-12">
+          <div className="flex flex-col gap-4">
+            <h1 className="text-4xl font-bold text-white">Governor Dashboard</h1>
+            <p className="text-gray-400">Welcome to the governor dashboard. Here you can manage the DAO and its members.</p>
+          </div>
+          <div className="flex flex-col items-end gap-3">
+            <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-lg">
+              <Shield className="w-5 h-5 text-red-400" />
+              <span className="text-red-200">{daoContract.role}</span>
+            </div>
+            <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-lg">
+              <span className="text-gray-400">{daoContract.name}</span>
+            </div>
+            <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-lg">
+              <span className="text-red-200/80 font-mono">
+                {account?.address?.toString().slice(0, 6)}...{account?.address?.toString().slice(-4)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Metrics Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* Key Metrics - Row 1 */}
+          {/* Key Metrics Row */}
           <InViewMotion>
             <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
               <CardContent className="p-6">
@@ -563,30 +586,36 @@ export default function GovernancePage() {
             </Card>
           </InViewMotion>
 
-          {/* Governance Metrics - Span 4 columns */}
-          <InViewMotion>
-            <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl md:col-span-4">
-              <CardHeader>
-                <CardTitle className="text-xl text-white">
-                  Governance Metrics
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  {Object.entries(daoContract.governanceMetrics).map(
-                    ([key, value], index) => (
-                      <div key={index} className="p-4 bg-white/5 rounded-lg">
-                        <p className="text-gray-400 mb-2">
-                          {key.split(/(?=[A-Z])/).join(" ")}
-                        </p>
-                        <p className="text-2xl font-bold text-white">{value}</p>
-                      </div>
-                    )
-                  )}
+          {/* Governance Metrics Section */}
+          <div className="col-span-full mt-6">
+            <h2 className="text-2xl font-semibold text-white mb-6">Governance Metrics</h2>
+            <div className="grid grid-cols-4 gap-6">
+              <div className="bg-black/40 rounded-xl p-8 backdrop-blur-sm border border-red-900/10">
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-gray-400 text-sm font-medium">Proposal Success Rate</h3>
+                  <p className="text-5xl font-bold text-white">{daoContract.governanceMetrics.proposalSuccessRate}</p>
                 </div>
-              </CardContent>
-            </Card>
-          </InViewMotion>
+              </div>
+              <div className="bg-black/40 rounded-xl p-8 backdrop-blur-sm border border-red-900/10">
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-gray-400 text-sm font-medium">Average Quorum</h3>
+                  <p className="text-5xl font-bold text-white">{daoContract.governanceMetrics.averageQuorum}</p>
+                </div>
+              </div>
+              <div className="bg-black/40 rounded-xl p-8 backdrop-blur-sm border border-red-900/10">
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-gray-400 text-sm font-medium">Average Voting Period</h3>
+                  <p className="text-5xl font-bold text-white">{daoContract.governanceMetrics.averageVotingPeriod}</p>
+                </div>
+              </div>
+              <div className="bg-black/40 rounded-xl p-8 backdrop-blur-sm border border-red-900/10">
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-gray-400 text-sm font-medium">Governor Participation</h3>
+                  <p className="text-5xl font-bold text-white">{daoContract.governanceMetrics.governorParticipation}</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

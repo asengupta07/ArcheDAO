@@ -8,7 +8,7 @@ async function test() {
   await move.test({
     packageDirectoryPath: "contract",
     namedAddresses: {
-      message_board_addr: "0x100",
+      DAOri: process.env.MODULE_PUBLISHER_ACCOUNT_ADDRESS,
     },
   });
 }
