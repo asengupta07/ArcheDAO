@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,24 +16,55 @@ import {
   Clock,
   Tag,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
+import { useTaskManager } from "@/hooks/useTaskManager";
+import { useToast } from "@/hooks/use-toast";
+
+// Create a memoized background component
+const Background = memo(function Background() {
+  return (
+    <div className="fixed inset-0 z-0">
+      <Aurora
+        colorStops={["#8B0000", "#660000", "#8B0000"]}
+        amplitude={1.2}
+        speed={0.3}
+        blend={0.8}
+      />
+    </div>
+  );
+});
+
+// Add debounce utility
+const debounce = (func: Function, wait: number) => {
+  let timeout: NodeJS.Timeout;
+  return (...args: any[]) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
 
 export default function CreateTaskPage() {
   const { account, connected } = useWallet();
   const router = useRouter();
+  const { createTask } = useTaskManager();
+  const { toast: useToastToast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [taskData, setTaskData] = useState({
+    dao_id: 1, // TODO: Get from context or params
     title: "",
     description: "",
     category: "General",
     priority: "medium",
     estimatedHours: "",
-    reward: "",
+    bounty_amount: "",
+    required_skills: "",
     deadline: "",
-    requirements: "",
-    deliverables: "",
+    validators: "", // New field for validators
   });
 
   const categories = [
@@ -53,52 +84,95 @@ export default function CreateTaskPage() {
     { value: "high", label: "High Priority", color: "text-red-500" },
   ];
 
+  // Debounced input handler
+  const debouncedInputChange = useCallback(
+    debounce((field: string, value: string) => {
+      setTaskData((prev) => ({
+        ...prev,
+        [field]: value,
+      }));
+    }, 100),
+    []
+  );
+
   const handleInputChange = (field: string, value: string) => {
-    setTaskData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    // Update the input value immediately for UI responsiveness
+    const input = document.querySelector(
+      `[name="${field}"]`
+    ) as HTMLInputElement;
+    if (input) {
+      input.value = value;
+    }
+    // Debounce the state update
+    debouncedInputChange(field, value);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Validation
-    if (
-      !taskData.title ||
-      !taskData.description ||
-      !taskData.reward ||
-      !taskData.deadline
-    ) {
+    if (!connected || !account) {
       toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields.",
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet to create a task.",
         variant: "destructive",
       });
       return;
     }
 
-    // Here you would typically call your smart contract to create the task
-    toast({
-      title: "Task Created Successfully",
-      description: "Your task has been published to the DAO.",
-    });
+    try {
+      setIsSubmitting(true);
 
-    // Redirect back to tasks page
-    router.push("/dao/tasks");
+      // Parse required skills into array
+      const skillsArray = (taskData.required_skills || "")
+        .split(",")
+        .map((skill) => skill.trim())
+        .filter((skill) => skill.length > 0);
+
+      // Parse validators into array
+      const validatorsArray = (taskData.validators || "")
+        .split(",")
+        .map((addr) => addr.trim())
+        .filter((addr) => addr.length > 0);
+
+      // Convert bounty to Octas (1 APT = 100000000 Octas)
+      const bountyInOctas = parseFloat(taskData.bounty_amount) * 100000000;
+
+      // Convert deadline to Unix timestamp
+      const deadlineDate = new Date(taskData.deadline);
+      const deadlineTimestamp = Math.floor(deadlineDate.getTime() / 1000);
+
+      await createTask({
+        dao_id: taskData.dao_id,
+        title: taskData.title,
+        description: taskData.description,
+        bounty_amount: bountyInOctas,
+        required_skills: skillsArray,
+        deadline: deadlineTimestamp,
+        validators: validatorsArray,
+      });
+
+      toast({
+        title: "Task Created",
+        description: "Your task has been created successfully.",
+      });
+
+      router.push("/dao/tasks");
+    } catch (error) {
+      console.error("Error creating task:", error);
+      toast({
+        title: "Error Creating Task",
+        description:
+          error instanceof Error ? error.message : "Failed to create task.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!connected) {
     return (
       <div className="min-h-screen relative">
-        <div className="fixed inset-0 z-0">
-          <Aurora
-            colorStops={["#8B0000", "#660000", "#8B0000"]}
-            amplitude={1.2}
-            speed={0.3}
-            blend={0.8}
-          />
-        </div>
+        <Background />
         <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
           <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
             <CardHeader>
@@ -106,7 +180,7 @@ export default function CreateTaskPage() {
                 Connect Your Wallet
               </CardTitle>
               <p className="text-gray-300">
-                Please connect your wallet to create tasks.
+                Please connect your wallet to create a task.
               </p>
             </CardHeader>
           </Card>
@@ -117,17 +191,8 @@ export default function CreateTaskPage() {
 
   return (
     <div className="min-h-screen relative">
-      <div className="fixed inset-0 z-0">
-        <Aurora
-          colorStops={["#8B0000", "#660000", "#8B0000"]}
-          amplitude={1.2}
-          speed={0.3}
-          blend={0.8}
-        />
-      </div>
-
+      <Background />
       <div className="relative z-10 container mx-auto px-4 py-[8rem] mt-6">
-        {/* Header */}
         <InViewMotion>
           <div className="flex items-center gap-4 mb-8">
             <Button
@@ -141,271 +206,123 @@ export default function CreateTaskPage() {
             </Button>
             <div>
               <h1 className="text-3xl md:text-4xl font-bold text-white">
-                Create New Task
+                Create Task
               </h1>
-              <p className="text-gray-400">
-                Define a new task for DAO members to complete
-              </p>
+              <p className="text-gray-400">Create a new task for your DAO</p>
             </div>
           </div>
         </InViewMotion>
 
-        <div className="max-w-4xl">
-          <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Main Task Details */}
-              <div className="lg:col-span-2 space-y-6">
-                <InViewMotion>
-                  <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
-                    <CardHeader>
-                      <CardTitle className="text-xl text-white">
-                        Task Details
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <label className="text-white font-medium mb-2 block">
-                          Title <span className="text-red-400">*</span>
-                        </label>
-                        <Input
-                          value={taskData.title}
-                          onChange={(e) =>
-                            handleInputChange("title", e.target.value)
-                          }
-                          className="bg-white/5 border-red-900/20 text-white"
-                          placeholder="Enter task title"
-                          required
-                        />
-                      </div>
+        <InViewMotion>
+          <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
+            <CardContent className="p-6">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-white font-medium">Title</label>
+                  <Input
+                    value={taskData.title}
+                    onChange={(e) => handleInputChange("title", e.target.value)}
+                    placeholder="Enter task title"
+                    required
+                    className="bg-white/10 border-white/20 text-white placeholder-white/50"
+                  />
+                </div>
 
-                      <div>
-                        <label className="text-white font-medium mb-2 block">
-                          Description <span className="text-red-400">*</span>
-                        </label>
-                        <Textarea
-                          value={taskData.description}
-                          onChange={(e) =>
-                            handleInputChange("description", e.target.value)
-                          }
-                          className="bg-white/5 border-red-900/20 text-white min-h-[120px]"
-                          placeholder="Describe what needs to be accomplished..."
-                          required
-                        />
-                      </div>
+                <div className="space-y-2">
+                  <label className="text-white font-medium">Description</label>
+                  <Textarea
+                    value={taskData.description}
+                    onChange={(e) =>
+                      handleInputChange("description", e.target.value)
+                    }
+                    placeholder="Enter task description, requirements, and deliverables"
+                    required
+                    className="bg-white/10 border-white/20 text-white placeholder-white/50 min-h-[150px]"
+                  />
+                </div>
 
-                      <div>
-                        <label className="text-white font-medium mb-2 block">
-                          Requirements
-                        </label>
-                        <Textarea
-                          value={taskData.requirements}
-                          onChange={(e) =>
-                            handleInputChange("requirements", e.target.value)
-                          }
-                          className="bg-white/5 border-red-900/20 text-white min-h-[100px]"
-                          placeholder="List any specific requirements, skills, or qualifications needed..."
-                        />
-                      </div>
+                <div className="space-y-2">
+                  <label className="text-white font-medium">
+                    Required Skills
+                  </label>
+                  <Input
+                    value={taskData.required_skills}
+                    onChange={(e) =>
+                      handleInputChange("required_skills", e.target.value)
+                    }
+                    placeholder="Enter required skills (comma-separated)"
+                    required
+                    className="bg-white/10 border-white/20 text-white placeholder-white/50"
+                  />
+                </div>
 
-                      <div>
-                        <label className="text-white font-medium mb-2 block">
-                          Deliverables
-                        </label>
-                        <Textarea
-                          value={taskData.deliverables}
-                          onChange={(e) =>
-                            handleInputChange("deliverables", e.target.value)
-                          }
-                          className="bg-white/5 border-red-900/20 text-white min-h-[100px]"
-                          placeholder="What should be delivered upon completion..."
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </InViewMotion>
-              </div>
+                <div className="space-y-2">
+                  <label className="text-white font-medium">Validators</label>
+                  <Input
+                    value={taskData.validators}
+                    onChange={(e) =>
+                      handleInputChange("validators", e.target.value)
+                    }
+                    placeholder="Enter validator addresses (comma-separated)"
+                    className="bg-white/10 border-white/20 text-white placeholder-white/50"
+                  />
+                  <p className="text-sm text-gray-400">
+                    Optional: Add addresses of validators who can approve task
+                    completion
+                  </p>
+                </div>
 
-              {/* Task Configuration */}
-              <div className="space-y-6">
-                <InViewMotion>
-                  <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
-                    <CardHeader>
-                      <CardTitle className="text-xl text-white">
-                        Configuration
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <label className="text-white font-medium mb-2 block">
-                          <Tag className="w-4 h-4 inline mr-1" />
-                          Category
-                        </label>
-                        <select
-                          value={taskData.category}
-                          onChange={(e) =>
-                            handleInputChange("category", e.target.value)
-                          }
-                          className="w-full bg-white/5 border border-red-900/20 rounded-lg px-3 py-2 text-white"
-                        >
-                          {categories.map((cat) => (
-                            <option key={cat} value={cat}>
-                              {cat}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-white font-medium">
+                      Bounty (APT)
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={taskData.bounty_amount}
+                      onChange={(e) =>
+                        handleInputChange("bounty_amount", e.target.value)
+                      }
+                      placeholder="Enter bounty amount in APT"
+                      required
+                      className="bg-white/10 border-white/20 text-white placeholder-white/50"
+                    />
+                  </div>
 
-                      <div>
-                        <label className="text-white font-medium mb-2 block">
-                          <AlertCircle className="w-4 h-4 inline mr-1" />
-                          Priority
-                        </label>
-                        <select
-                          value={taskData.priority}
-                          onChange={(e) =>
-                            handleInputChange("priority", e.target.value)
-                          }
-                          className="w-full bg-white/5 border border-red-900/20 rounded-lg px-3 py-2 text-white"
-                        >
-                          {priorities.map((priority) => (
-                            <option key={priority.value} value={priority.value}>
-                              {priority.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                  <div className="space-y-2">
+                    <label className="text-white font-medium">Deadline</label>
+                    <Input
+                      type="datetime-local"
+                      value={taskData.deadline}
+                      onChange={(e) =>
+                        handleInputChange("deadline", e.target.value)
+                      }
+                      required
+                      className="bg-white/10 border-white/20 text-white placeholder-white/50"
+                    />
+                  </div>
+                </div>
 
-                      <div>
-                        <label className="text-white font-medium mb-2 block">
-                          <Clock className="w-4 h-4 inline mr-1" />
-                          Estimated Hours
-                        </label>
-                        <Input
-                          type="number"
-                          value={taskData.estimatedHours}
-                          onChange={(e) =>
-                            handleInputChange("estimatedHours", e.target.value)
-                          }
-                          className="bg-white/5 border-red-900/20 text-white"
-                          placeholder="e.g., 8"
-                          min="1"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-white font-medium mb-2 block">
-                          <Coins className="w-4 h-4 inline mr-1" />
-                          Reward (APT) <span className="text-red-400">*</span>
-                        </label>
-                        <Input
-                          type="number"
-                          value={taskData.reward}
-                          onChange={(e) =>
-                            handleInputChange("reward", e.target.value)
-                          }
-                          className="bg-white/5 border-red-900/20 text-white"
-                          placeholder="e.g., 500"
-                          min="1"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-white font-medium mb-2 block">
-                          <Calendar className="w-4 h-4 inline mr-1" />
-                          Deadline <span className="text-red-400">*</span>
-                        </label>
-                        <Input
-                          type="date"
-                          value={taskData.deadline}
-                          onChange={(e) =>
-                            handleInputChange("deadline", e.target.value)
-                          }
-                          className="bg-white/5 border-red-900/20 text-white"
-                          required
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </InViewMotion>
-
-                {/* Task Preview */}
-                <InViewMotion>
-                  <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
-                    <CardHeader>
-                      <CardTitle className="text-xl text-white">
-                        Preview
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3 text-sm">
-                        <div>
-                          <span className="text-gray-400">Title:</span>
-                          <p className="text-white">
-                            {taskData.title || "Untitled Task"}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-gray-400">Category:</span>
-                          <p className="text-white">{taskData.category}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-400">Priority:</span>
-                          <p
-                            className={
-                              priorities.find(
-                                (p) => p.value === taskData.priority
-                              )?.color
-                            }
-                          >
-                            {
-                              priorities.find(
-                                (p) => p.value === taskData.priority
-                              )?.label
-                            }
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-gray-400">Reward:</span>
-                          <p className="text-white">
-                            {taskData.reward || "0"} APT
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-gray-400">Deadline:</span>
-                          <p className="text-white">
-                            {taskData.deadline || "Not set"}
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </InViewMotion>
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <InViewMotion>
-              <div className="mt-8 flex gap-4">
                 <Button
                   type="submit"
-                  className="bg-gradient-to-r from-red-900 to-red-700 px-8"
+                  className="w-full bg-gradient-to-r from-red-900 to-red-700"
+                  disabled={isSubmitting}
                 >
-                  <Save className="w-4 h-4 mr-2" />
-                  Create Task
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating Task...
+                    </>
+                  ) : (
+                    "Create Task"
+                  )}
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => router.push("/dao/tasks")}
-                  className="border-red-900/20 text-white hover:bg-red-900/20"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </InViewMotion>
-          </form>
-        </div>
+              </form>
+            </CardContent>
+          </Card>
+        </InViewMotion>
       </div>
     </div>
   );

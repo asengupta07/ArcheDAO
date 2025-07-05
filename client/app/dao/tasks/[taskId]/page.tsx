@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,47 +23,112 @@ import {
   Play,
   Pause,
   Send,
+  Loader2,
+  X,
 } from "lucide-react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
+import { useTaskManager } from "@/hooks/useTaskManager";
+import {
+  TASK_STATUS,
+  getTaskStatusLabel,
+  getTaskStatusColor,
+} from "@/config/contract";
+import { Input } from "@/components/ui/input";
 
-// Mock task data - in real app this would be fetched based on taskId
-const mockTask = {
-  id: "TASK-101",
-  title: "Update Documentation",
-  description:
-    "Update the DAO governance documentation with latest changes and procedures. This includes updating the voting mechanisms, proposal creation process, and member onboarding guidelines.",
-  status: "in-progress",
-  priority: "high",
-  assignee: "0x8e46...74ac",
-  reward: "500 APT",
-  deadline: "2024-03-20",
-  createdAt: "2024-03-15",
-  createdBy: "0x7d32...91bc",
-  category: "Documentation",
-  estimatedHours: 8,
-  progress: 65,
-  requirements:
-    "Experience with technical writing, understanding of DAO governance, Markdown proficiency",
-  deliverables:
-    "- Updated governance documentation\n- Onboarding guide for new members\n- FAQ section updates\n- Review and approval from core team",
-  comments: [
-    {
-      id: 1,
-      author: "0x8e46...74ac",
-      content:
-        "Started working on the governance section. Making good progress!",
-      timestamp: "2024-03-16 10:30",
-    },
-    {
-      id: 2,
-      author: "0x7d32...91bc",
-      content:
-        "Great! Let me know if you need any clarification on the new voting mechanisms.",
-      timestamp: "2024-03-16 14:20",
-    },
-  ],
+interface Comment {
+  id: string;
+  content: string;
+  author: string;
+  timestamp: string;
+}
+
+interface TaskInfo {
+  id: number;
+  dao_id: number;
+  title: string;
+  description: string;
+  creator: string;
+  assignee: string | null;
+  bounty_amount: number;
+  required_skills: string[];
+  deadline: number;
+  state: number;
+  submission_hash: string | null;
+  validators: string[];
+  validation_results: Record<string, boolean>;
+  completion_proof: string | null;
+  created_at: number;
+  user_is_creator: boolean;
+  user_is_assignee: boolean;
+  user_is_validator: boolean;
+  // UI fields with optional types since they may not come from API
+  requirements?: string;
+  deliverables?: string;
+  status?: string;
+  progress?: number;
+  comments?: Comment[];
+  createdBy?: string;
+  estimatedHours?: number;
+  reward?: string;
+  category?: string;
+}
+
+interface SubmissionData {
+  submission_hash: string;
+  completion_proof: string;
+}
+
+// Add a type for the API response
+interface TaskApiResponse {
+  id: number;
+  dao_id: number;
+  title: string;
+  description: string;
+  creator: string;
+  assignee: string | null;
+  bounty_amount: number;
+  required_skills: string[];
+  deadline: number;
+  state: number;
+  submission_hash: string | null;
+  validators: string[];
+  validation_results: Record<string, boolean>;
+  completion_proof: string | null;
+  created_at: number;
+  user_is_creator: boolean;
+  user_is_assignee: boolean;
+  user_is_validator: boolean;
+}
+
+// Add a function to handle undefined UI fields
+const getUIValue = (
+  value: string | number | undefined,
+  defaultValue: string | number = ""
+): string | number => {
+  return value !== undefined ? value : defaultValue;
+};
+
+// Add a function to transform API data to UI data
+const transformTaskData = (taskData: TaskApiResponse): TaskInfo => ({
+  ...taskData,
+  // Initialize UI fields with defaults
+  requirements: taskData.description, // Using description as requirements for now
+  deliverables: "", // Empty string default
+  status: getTaskStatus(taskData.state), // You'll need to implement this function
+  progress: 0,
+  comments: [],
+  createdBy: taskData.creator,
+  estimatedHours: 0,
+  reward: `${taskData.bounty_amount} APT`,
+  category: "Default",
+});
+
+// Add a helper function to convert state to status
+const getTaskStatus = (state: number): string => {
+  const states = ["open", "assigned", "submitted", "completed", "cancelled"];
+  return states[state] || "unknown";
 };
 
 export default function TaskDetailPage() {
@@ -72,76 +137,183 @@ export default function TaskDetailPage() {
   const params = useParams();
   const taskId = params.taskId as string;
 
+  const {
+    getTask,
+    assignTask,
+    submitTask,
+    validateTask,
+    distributeBounty,
+    loading,
+    formatAPTAmount,
+    formatDeadline,
+    isTaskExpired,
+  } = useTaskManager();
+
   const [newComment, setNewComment] = useState("");
-  const [task, setTask] = useState(mockTask);
-  const [isAssigned, setIsAssigned] = useState(
-    task.assignee === account?.address
-  );
+  const [task, setTask] = useState<TaskInfo | null>(null);
+  const [submissionData, setSubmissionData] = useState({
+    submission_hash: "",
+    completion_proof: "",
+  });
+  const [isLoading, setIsLoading] = useState(false);
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "open":
-        return "bg-blue-500/10 text-blue-500";
-      case "in-progress":
-        return "bg-yellow-500/10 text-yellow-500";
-      case "review":
-        return "bg-purple-500/10 text-purple-500";
-      case "completed":
-        return "bg-green-500/10 text-green-500";
-      default:
-        return "bg-gray-500/10 text-gray-500";
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority.toLowerCase()) {
-      case "high":
-        return "bg-red-500/10 text-red-500";
-      case "medium":
-        return "bg-yellow-500/10 text-yellow-500";
-      case "low":
-        return "bg-green-500/10 text-green-500";
-      default:
-        return "bg-gray-500/10 text-gray-500";
-    }
-  };
-
-  const handleAssignTask = () => {
-    setTask({ ...task, assignee: account?.address || "" });
-    setIsAssigned(true);
-    toast({
-      title: "Task Assigned",
-      description: "You have been assigned to this task.",
-    });
-  };
-
-  const handleStatusChange = (newStatus: string) => {
-    setTask({ ...task, status: newStatus });
-    toast({
-      title: "Status Updated",
-      description: `Task status changed to ${newStatus}.`,
-    });
-  };
-
-  const handleAddComment = () => {
-    if (!newComment.trim()) return;
-
-    const comment = {
-      id: task.comments.length + 1,
-      author: account?.address || "",
-      content: newComment,
-      timestamp: new Date().toLocaleString(),
+  // Fetch task data when component mounts
+  useEffect(() => {
+    const fetchTask = async () => {
+      if (connected && account && taskId) {
+        try {
+          const taskData = await getTask(parseInt(taskId));
+          if (taskData) {
+            setTask(transformTaskData(taskData));
+          }
+        } catch (error) {
+          console.error("Error fetching task:", error);
+          toast({
+            title: "Error Loading Task",
+            description: "Failed to load task details from the blockchain.",
+            variant: "destructive",
+          });
+        }
+      }
     };
 
-    setTask({
-      ...task,
-      comments: [...task.comments, comment],
-    });
-    setNewComment("");
-    toast({
-      title: "Comment Added",
-      description: "Your comment has been posted.",
-    });
+    fetchTask();
+  }, [connected, account?.address, taskId, getTask]);
+
+  const handleAssignTask = async () => {
+    if (!task) return;
+    try {
+      setIsLoading(true);
+      await assignTask(task.id);
+      const updatedTask = await getTask(task.id);
+      if (updatedTask) {
+        setTask(transformTaskData(updatedTask));
+      }
+      toast({
+        title: "Task Assigned",
+        description: "You have successfully been assigned to this task.",
+      });
+    } catch (error) {
+      console.error("Error assigning task:", error);
+      toast({
+        title: "Error Assigning Task",
+        description:
+          error instanceof Error ? error.message : "Failed to assign task.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmitTask = async () => {
+    if (
+      !task ||
+      !submissionData.submission_hash ||
+      !submissionData.completion_proof
+    ) {
+      toast({
+        title: "Missing Information",
+        description:
+          "Please provide both submission hash and completion proof.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await submitTask(
+        task.id,
+        submissionData.submission_hash,
+        submissionData.completion_proof
+      );
+      const updatedTask = await getTask(task.id);
+      if (updatedTask) {
+        setTask(transformTaskData(updatedTask));
+      }
+      setSubmissionData({ submission_hash: "", completion_proof: "" });
+      toast({
+        title: "Task Submitted",
+        description: "Your work has been submitted for validation.",
+      });
+    } catch (error) {
+      console.error("Error submitting task:", error);
+      toast({
+        title: "Error Submitting Task",
+        description:
+          error instanceof Error ? error.message : "Failed to submit task.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleValidateTask = async (isValid: boolean) => {
+    if (!task) return;
+    try {
+      setIsLoading(true);
+      await validateTask(task.id, isValid);
+      const updatedTask = await getTask(task.id);
+      if (updatedTask) {
+        setTask(transformTaskData(updatedTask));
+      }
+      toast({
+        title: isValid ? "Task Approved" : "Task Rejected",
+        description: isValid
+          ? "The task submission has been approved."
+          : "The task submission has been rejected.",
+      });
+    } catch (error) {
+      console.error("Error validating task:", error);
+      toast({
+        title: "Error Validating Task",
+        description:
+          error instanceof Error ? error.message : "Failed to validate task.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDistributeBounty = async () => {
+    if (!task) return;
+    try {
+      setIsLoading(true);
+      await distributeBounty(task.id);
+      const updatedTask = await getTask(task.id);
+      if (updatedTask) {
+        setTask(transformTaskData(updatedTask));
+      }
+      toast({
+        title: "Bounty Distributed",
+        description: "The task bounty has been distributed to the assignee.",
+      });
+    } catch (error) {
+      console.error("Error distributing bounty:", error);
+      toast({
+        title: "Error Distributing Bounty",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to distribute bounty.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    // TODO: Implement status change logic
+    console.log("Status change not implemented:", newStatus);
+  };
+
+  const handleAddComment = async () => {
+    // TODO: Implement comment addition logic
+    console.log("Add comment not implemented");
   };
 
   if (!connected) {
@@ -163,6 +335,42 @@ export default function TaskDetailPage() {
               </CardTitle>
               <p className="text-gray-300">
                 Please connect your wallet to view task details.
+              </p>
+            </CardHeader>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (!task) {
+    return (
+      <div className="min-h-screen relative">
+        <div className="fixed inset-0 z-0">
+          <Aurora
+            colorStops={["#8B0000", "#660000", "#8B0000"]}
+            amplitude={1.2}
+            speed={0.3}
+            blend={0.8}
+          />
+        </div>
+        <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
+          <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
+            <CardHeader>
+              <CardTitle className="text-2xl text-white mb-4">
+                {loading ? (
+                  <>
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                    Loading Task...
+                  </>
+                ) : (
+                  "Task Not Found"
+                )}
+              </CardTitle>
+              <p className="text-gray-300">
+                {loading
+                  ? "Fetching task details from the blockchain..."
+                  : "The requested task could not be found."}
               </p>
             </CardHeader>
           </Card>
@@ -197,28 +405,152 @@ export default function TaskDetailPage() {
             </Button>
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
-                <span className="text-gray-400 text-sm">{task.id}</span>
-                <Badge className={getStatusColor(task.status)}>
-                  {task.status.replace("-", " ")}
+                <span className="text-gray-400 text-sm">TASK-{task.id}</span>
+                <Badge className={getTaskStatusColor(task.state)}>
+                  {getTaskStatusLabel(task.state)}
                 </Badge>
-                <Badge className={getPriorityColor(task.priority)}>
-                  {task.priority} priority
-                </Badge>
+                {isTaskExpired(task.deadline) && (
+                  <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                    Expired
+                  </Badge>
+                )}
               </div>
               <h1 className="text-3xl md:text-4xl font-bold text-white">
                 {task.title}
               </h1>
             </div>
-            {task.status === "open" && !task.assignee && (
+            {task.state === TASK_STATUS.OPEN && !task.assignee && (
               <Button
                 onClick={handleAssignTask}
                 className="bg-green-600 hover:bg-green-700"
+                disabled={loading}
               >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <User className="w-4 h-4 mr-2" />
+                )}
                 Assign to Me
               </Button>
             )}
           </div>
         </InViewMotion>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-2">
+              Required Skills
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {(task.required_skills || []).map(
+                (skill: string, index: number) => (
+                  <Badge key={index} className="bg-red-900/30 text-red-200">
+                    {skill}
+                  </Badge>
+                )
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-2">
+              Validators
+            </h3>
+            <div className="space-y-2">
+              {(task.validators || []).length > 0 ? (
+                (task.validators || []).map(
+                  (validator: string, index: number) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-2 text-gray-300"
+                    >
+                      <User className="w-4 h-4" />
+                      <span>
+                        {validator.slice(0, 6)}...{validator.slice(-4)}
+                      </span>
+                      {task.validation_results &&
+                        task.validation_results[validator] !== undefined && (
+                          <Badge
+                            className={
+                              task.validation_results[validator]
+                                ? "bg-green-900/30 text-green-200"
+                                : "bg-red-900/30 text-red-200"
+                            }
+                          >
+                            {task.validation_results[validator]
+                              ? "Approved"
+                              : "Rejected"}
+                          </Badge>
+                        )}
+                    </div>
+                  )
+                )
+              ) : (
+                <p className="text-gray-400">No validators assigned</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {task.state === TASK_STATUS.SUBMITTED && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-white mb-2">
+              Submission Details
+            </h3>
+            <div className="space-y-4 bg-white/5 rounded-lg p-4">
+              {task.submission_hash && (
+                <div>
+                  <label className="text-sm text-gray-400">
+                    Submission Hash
+                  </label>
+                  <div className="font-mono text-white break-all">
+                    {task.submission_hash}
+                  </div>
+                </div>
+              )}
+              {task.completion_proof && (
+                <div>
+                  <label className="text-sm text-gray-400">
+                    Completion Proof
+                  </label>
+                  <div className="text-white whitespace-pre-wrap">
+                    {task.completion_proof}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Add validation buttons for validators */}
+        {task.state === TASK_STATUS.SUBMITTED && task.user_is_validator && (
+          <div className="flex gap-4 mb-6">
+            <Button
+              onClick={() => handleValidateTask(true)}
+              className="bg-green-600 hover:bg-green-700"
+              disabled={loading}
+            >
+              {loading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle className="w-4 h-4 mr-2" />
+              )}
+              Approve Submission
+            </Button>
+            <Button
+              onClick={() => handleValidateTask(false)}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={loading}
+            >
+              {loading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <X className="w-4 h-4 mr-2" />
+              )}
+              Reject Submission
+            </Button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
@@ -248,7 +580,9 @@ export default function TaskDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-gray-300">{task.requirements}</p>
+                  <p className="text-gray-300">
+                    {getUIValue(task.requirements)}
+                  </p>
                 </CardContent>
               </Card>
             </InViewMotion>
@@ -263,7 +597,7 @@ export default function TaskDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <pre className="text-gray-300 whitespace-pre-wrap font-sans">
-                    {task.deliverables}
+                    {getUIValue(task.deliverables)}
                   </pre>
                 </CardContent>
               </Card>
@@ -282,15 +616,15 @@ export default function TaskDetailPage() {
                     <div className="space-y-4">
                       <div className="flex justify-between text-sm text-gray-300">
                         <span>Completion</span>
-                        <span>{task.progress}%</span>
+                        <span>{getUIValue(task.progress, 0)}%</span>
                       </div>
                       <div className="h-3 bg-white/10 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-red-900 to-red-700 transition-all duration-300"
-                          style={{ width: `${task.progress}%` }}
+                          style={{ width: `${getUIValue(task.progress, 0)}%` }}
                         />
                       </div>
-                      {isAssigned && (
+                      {task.assignee && (
                         <div className="flex gap-2">
                           <Button
                             onClick={() => handleStatusChange("review")}
@@ -320,12 +654,12 @@ export default function TaskDetailPage() {
                 <CardHeader>
                   <CardTitle className="text-xl text-white">
                     <MessageSquare className="w-5 h-5 inline mr-2" />
-                    Comments ({task.comments.length})
+                    Comments ({task.comments?.length || 0})
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {task.comments.map((comment) => (
+                    {task.comments?.map((comment) => (
                       <div
                         key={comment.id}
                         className="p-4 bg-white/5 rounded-lg"
@@ -392,7 +726,9 @@ export default function TaskDetailPage() {
                     <User className="w-5 h-5 text-gray-400" />
                     <div>
                       <p className="text-gray-400 text-sm">Created by</p>
-                      <p className="text-white font-mono">{task.createdBy}</p>
+                      <p className="text-white font-mono">
+                        {getUIValue(task.createdBy)}
+                      </p>
                     </div>
                   </div>
 
@@ -408,7 +744,9 @@ export default function TaskDetailPage() {
                     <Clock className="w-5 h-5 text-gray-400" />
                     <div>
                       <p className="text-gray-400 text-sm">Estimated Hours</p>
-                      <p className="text-white">{task.estimatedHours}h</p>
+                      <p className="text-white">
+                        {getUIValue(task.estimatedHours)}h
+                      </p>
                     </div>
                   </div>
 
@@ -416,7 +754,7 @@ export default function TaskDetailPage() {
                     <Coins className="w-5 h-5 text-gray-400" />
                     <div>
                       <p className="text-gray-400 text-sm">Reward</p>
-                      <p className="text-white">{task.reward}</p>
+                      <p className="text-white">{getUIValue(task.reward)}</p>
                     </div>
                   </div>
 
@@ -424,7 +762,7 @@ export default function TaskDetailPage() {
                     <Target className="w-5 h-5 text-gray-400" />
                     <div>
                       <p className="text-gray-400 text-sm">Category</p>
-                      <p className="text-white">{task.category}</p>
+                      <p className="text-white">{getUIValue(task.category)}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -432,7 +770,7 @@ export default function TaskDetailPage() {
             </InViewMotion>
 
             {/* Actions */}
-            {isAssigned && (
+            {task.assignee && (
               <InViewMotion>
                 <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
                   <CardHeader>

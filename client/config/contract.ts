@@ -2,7 +2,7 @@
 export const CONTRACT_CONFIG = {
   // Replace these with your actual deployed contract addresses
   MODULE_ADDRESS: process.env.NEXT_PUBLIC_MODULE_ADDRESS || "0x692906717ffbfc458c597613e0dd42c8f18577d28c03d2fdb768a07aa0fee713",
-  MODULE_NAME: process.env.NEXT_PUBLIC_MODULE_NAME || "contracts",
+  MODULE_NAME: process.env.NEXT_PUBLIC_MODULE_NAME || "core",
   ADMIN_ADDRESS: process.env.NEXT_PUBLIC_ADMIN_ADDRESS || "0x692906717ffbfc458c597613e0dd42c8f18577d28c03d2fdb768a07aa0fee713",
   
   // Network configuration
@@ -31,9 +31,10 @@ export const PROPOSAL_STATUS = {
 // Task status from the smart contract
 export const TASK_STATUS = {
   OPEN: 0,
-  IN_PROGRESS: 1,
-  COMPLETED: 2,
-  CANCELED: 3,
+  ASSIGNED: 1,
+  SUBMITTED: 2,
+  COMPLETED: 3,
+  CANCELLED: 4,
 } as const;
 
 // Vote types from the smart contract
@@ -49,6 +50,10 @@ export const CONTRACT_FUNCTIONS = {
   GET_USER_PROFILE: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::get_user_profile`,
   GET_COMPLETE_USER_DAO_ECOSYSTEM: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::get_complete_user_dao_ecosystem`,
   GET_DAO_INFO: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::get_dao_info`,
+  GET_TASK: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::get_task`,
+  GET_DAO_TASKS: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::get_dao_tasks`,
+  GET_USER_CREATED_TASKS: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::get_user_created_tasks`,
+  GET_TASK_STATUS: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::get_task_status`,
   
   // Entry functions
   INITIALIZE: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::initialize`,
@@ -60,6 +65,13 @@ export const CONTRACT_FUNCTIONS = {
   CREATE_DAO: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::create_dao`,
   CREATE_PROPOSAL: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::create_proposal`,
   VOTE_ON_PROPOSAL: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::vote_on_proposal`,
+  
+  // Task functions
+  CREATE_TASK: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::create_task`,
+  ASSIGN_TASK: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::assign_task`,
+  SUBMIT_TASK: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::submit_task`,
+  VALIDATE_TASK: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::validate_task`,
+  DISTRIBUTE_BOUNTY: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::distribute_bounty`,
 } as const;
 
 // Resource types
@@ -144,12 +156,14 @@ export const getTaskStatusLabel = (status: number): string => {
   switch (status) {
     case TASK_STATUS.OPEN:
       return "Open";
-    case TASK_STATUS.IN_PROGRESS:
-      return "In Progress";
+    case TASK_STATUS.ASSIGNED:
+      return "Assigned";
+    case TASK_STATUS.SUBMITTED:
+      return "Submitted";
     case TASK_STATUS.COMPLETED:
       return "Completed";
-    case TASK_STATUS.CANCELED:
-      return "Canceled";
+    case TASK_STATUS.CANCELLED:
+      return "Cancelled";
     default:
       return "Unknown";
   }
@@ -159,11 +173,13 @@ export const getTaskStatusColor = (status: number): string => {
   switch (status) {
     case TASK_STATUS.OPEN:
       return "bg-blue-500/20 text-blue-400 border-blue-500/30";
-    case TASK_STATUS.IN_PROGRESS:
+    case TASK_STATUS.ASSIGNED:
       return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+    case TASK_STATUS.SUBMITTED:
+      return "bg-purple-500/20 text-purple-400 border-purple-500/30";
     case TASK_STATUS.COMPLETED:
       return "bg-green-500/20 text-green-400 border-green-500/30";
-    case TASK_STATUS.CANCELED:
+    case TASK_STATUS.CANCELLED:
       return "bg-red-500/20 text-red-400 border-red-500/30";
     default:
       return "bg-gray-500/20 text-gray-400 border-gray-500/30";
