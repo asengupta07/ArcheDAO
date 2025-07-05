@@ -1,7 +1,16 @@
 import { motion, useAnimation } from "framer-motion";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, PropsWithChildren } from "react";
 
-export default function InViewMotion({ children, className = "", ...props }) {
+interface InViewMotionProps extends PropsWithChildren<any> {
+  className?: string;
+  [key: string]: any;
+}
+
+export default function InViewMotion({
+  children,
+  className = "",
+  ...props
+}: InViewMotionProps) {
   const controls = useAnimation();
   const ref = useRef(null);
 
