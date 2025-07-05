@@ -13,9 +13,9 @@ const fontSans = FontSans({
 });
 
 export const metadata: Metadata = {
-  title: "Medical Records",
+  title: "ArcheDAO",
   description:
-    "Aptos Medical Records DApp",
+    "ArcheDAO is a decentralized DAO ecosystem on Aptos, onboard community and grow together",
 };
 
 export default function RootLayout({ children }: PropsWithChildren) {
@@ -24,18 +24,14 @@ export default function RootLayout({ children }: PropsWithChildren) {
       <body
         className={cn(
           "flex justify-center min-h-screen bg-background font-sans antialiased",
-          fontSans.variable,
+          fontSans.variable
         )}
       >
-       
-          <AutoConnectProvider>
-            <ReactQueryClientProvider>
-              <WalletProvider>
-                {children}
-              </WalletProvider>
-            </ReactQueryClientProvider>
-          </AutoConnectProvider>
-        
+        <AutoConnectProvider>
+          <ReactQueryClientProvider>
+            <WalletProvider>{children}</WalletProvider>
+          </ReactQueryClientProvider>
+        </AutoConnectProvider>
       </body>
     </html>
   );
