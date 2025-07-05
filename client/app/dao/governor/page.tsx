@@ -175,6 +175,13 @@ export default function GovernancePage() {
   const [proposals, setProposals] = useState<ProposalData[]>([]);
   const [tasks, setTasks] = useState<TaskData[]>([]);
 
+  // Utility function to safely access selectedDAO properties
+  const safeDAOProperty = (property: keyof DAOInfo, fallback: any = null) => {
+    if (!selectedDAO) return fallback;
+    const value = selectedDAO[property];
+    return value !== undefined && value !== null ? value : fallback;
+  };
+
   // Initialize Aptos client
   useEffect(() => {
     const config = new AptosConfig({
@@ -514,6 +521,41 @@ export default function GovernancePage() {
     );
   }
 
+  if (!selectedDAO) {
+    return (
+      <div className="min-h-screen relative">
+        <div className="fixed inset-0 z-0">
+          <Aurora
+            colorStops={["#8B0000", "#660000", "#8B0000"]}
+            amplitude={1.2}
+            speed={0.3}
+            blend={0.8}
+          />
+        </div>
+        <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
+          <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
+            <CardHeader>
+              <CardTitle className="text-2xl text-white mb-4">
+                No DAO Selected
+              </CardTitle>
+              <CardDescription className="text-gray-300">
+                Please select a DAO to manage from your available DAOs.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => window.location.href = '/dao/dashboard'}
+                className="bg-gradient-to-r from-red-900 to-red-700"
+              >
+                Go to Dashboard
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen relative">
       <div className="fixed inset-0 z-0">
@@ -631,19 +673,22 @@ export default function GovernancePage() {
                     <div className="text-center">
                       <p className="text-sm text-gray-400">Created</p>
                       <p className="text-white font-medium">
-                        {new Date(selectedDAO.created_at * 1000).toLocaleDateString()}
+                        {selectedDAO.created_at ? new Date(selectedDAO.created_at * 1000).toLocaleDateString() : 'Unknown'}
                       </p>
                     </div>
                     <div className="text-center">
                       <p className="text-sm text-gray-400">Governance Token</p>
                       <p className="text-white font-mono text-sm">
-                        {selectedDAO.governance_token.slice(0, 8)}...{selectedDAO.governance_token.slice(-8)}
+                        {selectedDAO.governance_token ? 
+                          `${selectedDAO.governance_token.slice(0, 8)}...${selectedDAO.governance_token.slice(-8)}` : 
+                          'N/A'
+                        }
                       </p>
                     </div>
                     <div className="text-center">
                       <p className="text-sm text-gray-400">Total Supply</p>
                       <p className="text-white font-medium">
-                        {selectedDAO.total_supply.toLocaleString()} tokens
+                        {selectedDAO.total_supply ? selectedDAO.total_supply.toLocaleString() : '0'} tokens
                       </p>
                     </div>
                   </div>
@@ -653,15 +698,15 @@ export default function GovernancePage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-400">Voting Period:</span>
-                        <span className="text-white">{Math.floor(selectedDAO.voting_period / 86400)} days</span>
+                        <span className="text-white">{selectedDAO.voting_period ? Math.floor(selectedDAO.voting_period / 86400) : 0} days</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Execution Delay:</span>
-                        <span className="text-white">{Math.floor(selectedDAO.execution_delay / 3600)} hours</span>
+                        <span className="text-white">{selectedDAO.execution_delay ? Math.floor(selectedDAO.execution_delay / 3600) : 0} hours</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Proposal Threshold:</span>
-                        <span className="text-white">{selectedDAO.minimum_proposal_threshold} tokens</span>
+                        <span className="text-white">{selectedDAO.minimum_proposal_threshold || 0} tokens</span>
                       </div>
                     </div>
                   </div>
@@ -681,7 +726,7 @@ export default function GovernancePage() {
                       <div>
                         <p className="text-sm text-gray-400">Total Members</p>
                         <p className="text-2xl font-bold text-white">
-                          {selectedDAO.member_count}
+                          {selectedDAO.member_count || 0}
                         </p>
                       </div>
                     </div>
@@ -699,7 +744,7 @@ export default function GovernancePage() {
                       <div>
                         <p className="text-sm text-gray-400">Treasury Balance</p>
                         <p className="text-2xl font-bold text-white">
-                          {selectedDAO.treasury_balance} APT
+                          {selectedDAO.treasury_balance || 0} APT
                         </p>
                       </div>
                     </div>
@@ -717,7 +762,7 @@ export default function GovernancePage() {
                       <div>
                         <p className="text-sm text-gray-400">Total Proposals</p>
                         <p className="text-2xl font-bold text-white">
-                          {selectedDAO.proposal_count}
+                          {selectedDAO.proposal_count || 0}
                         </p>
                       </div>
                     </div>
@@ -735,7 +780,7 @@ export default function GovernancePage() {
                       <div>
                         <p className="text-sm text-gray-400">Total Tasks</p>
                         <p className="text-2xl font-bold text-white">
-                          {selectedDAO.task_count}
+                          {selectedDAO.task_count || 0}
                         </p>
                       </div>
                     </div>
@@ -888,12 +933,12 @@ export default function GovernancePage() {
                 <CardHeader>
                   <CardTitle className="text-xl text-white flex items-center gap-2">
                     <Crown className="w-5 h-5" />
-                    Governors ({selectedDAO.governors.length})
+                    Governors ({selectedDAO.governors?.length || 0})
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {selectedDAO.governors.map((governor, index) => (
+                    {selectedDAO.governors?.map((governor, index) => (
                       <div
                         key={index}
                         className="flex items-center justify-between p-4 bg-white/5 rounded-lg"
@@ -1131,7 +1176,7 @@ export default function GovernancePage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {selectedDAO.members.slice(0, 10).map((member, index) => (
+                    {selectedDAO.members?.slice(0, 10).map((member, index) => (
                       <div
                         key={index}
                         className="flex items-center justify-between p-3 bg-white/5 rounded-lg"
@@ -1148,7 +1193,7 @@ export default function GovernancePage() {
                               <Badge className="bg-blue-500/20 text-blue-400 text-xs">
                                 Member
                               </Badge>
-                              {selectedDAO.governors.includes(member) && (
+                              {selectedDAO.governors?.includes(member) && (
                                 <Badge className="bg-red-500/20 text-red-400 text-xs">
                                   Governor
                                 </Badge>
@@ -1158,10 +1203,10 @@ export default function GovernancePage() {
                         </div>
                       </div>
                     ))}
-                    {selectedDAO.members.length > 10 && (
+                    {selectedDAO.members && selectedDAO.members.length > 10 && (
                       <div className="text-center pt-4">
                         <p className="text-gray-400 text-sm">
-                          And {selectedDAO.members.length - 10} more members...
+                          And {(selectedDAO.members?.length || 0) - 10} more members...
                         </p>
                       </div>
                     )}
