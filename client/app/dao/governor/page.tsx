@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -46,115 +46,257 @@ import {
   Check,
   UserPlus,
   X,
+  UserMinus,
+  Key,
+  Settings,
+  UserCheck,
+  Zap,
+  GitBranch,
+  Star,
+  TrendingDown,
+  Trash2,
+  Edit,
+  RefreshCw,
 } from "lucide-react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { toast } from "@/hooks/use-toast";
+import { Aptos, AptosConfig, Network as AptosNetwork } from "@aptos-labs/ts-sdk";
+import { 
+  CONTRACT_CONFIG, 
+  USER_TYPES, 
+  CONTRACT_FUNCTIONS, 
+  RESOURCE_TYPES, 
+  PROPOSAL_STATUS,
+  TASK_STATUS,
+  VOTE_TYPES,
+  getUserTypeLabel, 
+  getUserTypeColor,
+  getProposalStatusLabel,
+  getProposalStatusColor,
+  getTaskStatusLabel,
+  getTaskStatusColor,
+  getVoteTypeLabel,
+  getVoteTypeColor
+} from "../../../config/contract";
 
-// Hardcoded member data
-const daoMembers = [
-  {
-    address: "0x8e46...74ac",
-    role: "Governor",
-    joinedDate: "2024-01-15",
-    votingPower: "15%",
-  },
-  {
-    address: "0x7d32...91bc",
-    role: "Governor",
-    joinedDate: "2024-01-16",
-    votingPower: "12%",
-  },
-  {
-    address: "0x9f23...45de",
-    role: "Member",
-    joinedDate: "2024-02-01",
-    votingPower: "5%",
-  },
-  {
-    address: "0x2a1b...67cd",
-    role: "Member",
-    joinedDate: "2024-02-15",
-    votingPower: "3%",
-  },
-];
+interface UserProfile {
+  address: string;
+  user_type: number;
+  reputation_score: number;
+  contribution_score: number;
+  is_premium: boolean;
+  premium_expires: number;
+  governance_participation: number;
+  voting_power: number;
+  created_at: number;
+}
 
-// Hardcoded DAO data (simulating smart contract data)
-const daoContract = {
-  daoId: "dao_123",
-  daoAddress: "0x8e46...74ac",
-  name: "TechDAO",
-  role: "Governor",
-  overview: {
-    totalMembers: 1250,
-    treasuryBalance: "125,000 APT",
-    marketValue: "$1,875,000",
-    treasuryChange: "+12.5%",
-    activeProposals: 3,
-    totalProposals: 28,
-    successRate: "85%",
-  },
-  votingPower: {
-    community: 60,
-    governors: 40,
-    yourVotingPower: 15,
-  },
-  recentProposals: [
-    {
-      id: "PROP-31",
-      title: "Implement Layer 2 Scaling",
-      status: "active",
-      votes: { yes: 75, no: 25 },
-      timeLeft: "2 days",
-      quorum: 80,
-      yourVote: "yes",
-    },
-    {
-      id: "PROP-30",
-      title: "Treasury Diversification",
-      status: "pending",
-      votes: { yes: 45, no: 55 },
-      timeLeft: "5 days",
-      quorum: 60,
-      yourVote: null,
-    },
-    {
-      id: "PROP-29",
-      title: "Community Rewards Program",
-      status: "completed",
-      votes: { yes: 90, no: 10 },
-      timeLeft: "0 days",
-      quorum: 100,
-      yourVote: "yes",
-    },
-  ],
-  governanceMetrics: {
-    proposalSuccessRate: "85%",
-    averageQuorum: "75%",
-    averageVotingPeriod: "5 days",
-    governorParticipation: "92%",
-  },
-  treasuryActivity: [
-    { type: "Inflow", amount: "+5,000 APT", date: "2024-03-15" },
-    { type: "Outflow", amount: "-2,000 APT", date: "2024-03-14" },
-    { type: "Inflow", amount: "+8,000 APT", date: "2024-03-13" },
-  ],
-};
+interface DAOInfo {
+  id: number;
+  dao_code: string;
+  name: string;
+  description: string;
+  creator: string;
+  governors: string[];
+  members: string[];
+  total_supply: number;
+  governance_token: string;
+  minimum_proposal_threshold: number;
+  voting_period: number;
+  execution_delay: number;
+  proposal_count: number;
+  task_count: number;
+  treasury_balance: number;
+  is_active: boolean;
+  created_at: number;
+  member_count: number;
+}
+
+interface UserDAOEcosystem {
+  user_address: string;
+  total_daos_joined: number;
+  total_voting_power: number;
+  total_proposals_created: number;
+  total_tasks_created: number;
+  total_votes_cast: number;
+  daos: any[];
+  generated_at: number;
+}
+
+interface ProposalData {
+  id: number;
+  title: string;
+  description: string;
+  proposer: string;
+  status: number; // Enum value from contract
+  votes_for: number;
+  votes_against: number;
+  total_votes: number;
+  start_time: number;
+  end_time: number;
+  execution_time: number;
+  quorum_threshold: number;
+  created_at: number;
+}
+
+interface TaskData {
+  id: number;
+  title: string;
+  description: string;
+  creator: string;
+  assignee: string;
+  status: number; // Enum value from contract
+  reward: number;
+  deadline: number;
+  created_at: number;
+  completed_at: number;
+}
+
+interface VoteData {
+  proposal_id: number;
+  voter: string;
+  vote_type: number; // Enum value from contract
+  voting_power: number;
+  timestamp: number;
+}
 
 export default function GovernancePage() {
-  const { account, connected } = useWallet();
+  const { account, connected, signAndSubmitTransaction } = useWallet();
+  const [loading, setLoading] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userEcosystem, setUserEcosystem] = useState<UserDAOEcosystem | null>(null);
+  const [selectedDAO, setSelectedDAO] = useState<DAOInfo | null>(null);
   const [inviteLink, setInviteLink] = useState("");
   const [showCopied, setShowCopied] = useState(false);
-  const [selectedProposal, setSelectedProposal] = useState(null);
+  const [aptosClient, setAptosClient] = useState<Aptos | null>(null);
+  const [newGovernorAddress, setNewGovernorAddress] = useState("");
+  const [newOwnerAddress, setNewOwnerAddress] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [proposals, setProposals] = useState<ProposalData[]>([]);
+  const [tasks, setTasks] = useState<TaskData[]>([]);
 
-  const generateInviteLink = () => {
-    // In real implementation, this would call the smart contract to generate a unique code
-    const uniqueCode = Math.random().toString(36).substring(2, 15);
-    const newLink = `${window.location.origin}/invite?code=${uniqueCode}`;
-    setInviteLink(newLink);
-    toast({
-      title: "Invite Link Generated",
-      description: "The link will be valid for 24 hours.",
+  // Initialize Aptos client
+  useEffect(() => {
+    const config = new AptosConfig({
+      network: AptosNetwork.DEVNET,
     });
+    setAptosClient(new Aptos(config));
+  }, []);
+
+  // Load user data when connected
+  useEffect(() => {
+    if (connected && account && aptosClient) {
+      loadUserData();
+    }
+  }, [connected, account, aptosClient]);
+
+  const loadUserData = async () => {
+    if (!account || !aptosClient) return;
+
+    try {
+      setLoading(true);
+      
+      // Get user profile
+      try {
+        const profileResource = await aptosClient.getAccountResource({
+          accountAddress: account.address,
+          resourceType: RESOURCE_TYPES.USER_PROFILE,
+        });
+        setUserProfile(profileResource.data as UserProfile);
+      } catch (error) {
+        console.log("User profile not found, user might not be registered");
+        toast({
+          title: "User Not Registered",
+          description: "You need to join a DAO first to access this dashboard.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Get user's complete DAO ecosystem
+      try {
+        const ecosystemData = await aptosClient.view({
+          payload: {
+            function: CONTRACT_FUNCTIONS.GET_COMPLETE_USER_DAO_ECOSYSTEM,
+            functionArguments: [account.address.toString()],
+          },
+        });
+        
+        if (!ecosystemData || !ecosystemData[0]) {
+          throw new Error("No ecosystem data returned");
+        }
+        
+        setUserEcosystem(ecosystemData[0] as UserDAOEcosystem);
+        
+        // Select the first DAO where user is a governor or creator
+        const userEcosystemData = ecosystemData[0] as UserDAOEcosystem;
+        if (!userEcosystemData.daos || userEcosystemData.daos.length === 0) {
+          toast({
+            title: "No DAOs Found",
+            description: "You are not a member of any DAOs yet.",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+        
+        const governorDAOs = userEcosystemData.daos.filter(
+          (dao: any) => dao.user_membership && (dao.user_membership.is_governor || dao.user_membership.is_creator)
+        );
+        
+        if (governorDAOs.length > 0) {
+          setSelectedDAO(governorDAOs[0].dao_info);
+          // Load proposals and tasks for the selected DAO
+          setProposals(governorDAOs[0].proposals || []);
+          setTasks(governorDAOs[0].tasks || []);
+        }
+      } catch (error) {
+        console.error("Error loading user ecosystem:", error);
+        toast({
+          title: "Error Loading DAO Data",
+          description: error instanceof Error ? error.message : "Failed to load DAO ecosystem data.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error loading user data:", error);
+      toast({
+        title: "Error Loading Data",
+        description: "Failed to load user data from the blockchain.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshData = async () => {
+    setRefreshing(true);
+    await loadUserData();
+    setRefreshing(false);
+  };
+
+  const generateInviteLink = async () => {
+    if (!selectedDAO || !account) return;
+
+    try {
+      const uniqueCode = Math.random().toString(36).substring(2, 15);
+      const newLink = `${window.location.origin}/invite?code=${selectedDAO.dao_code}&dao_id=${selectedDAO.id}`;
+      setInviteLink(newLink);
+      
+      toast({
+        title: "Invite Link Generated",
+        description: `Share this link for users to join ${selectedDAO.name}`,
+      });
+    } catch (error) {
+      console.error("Error generating invite link:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate invite link.",
+        variant: "destructive",
+      });
+    }
   };
 
   const copyToClipboard = async () => {
@@ -167,25 +309,113 @@ export default function GovernancePage() {
     });
   };
 
-  const handleVote = (proposalId: string, vote: "yes" | "no") => {
-    toast({
-      title: "Vote Submitted",
-      description: `You voted ${vote} on proposal ${proposalId}`,
-    });
-  };
+  const promoteToGovernor = async () => {
+    if (!selectedDAO || !account || !newGovernorAddress) return;
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "active":
-        return "bg-green-500/10 text-green-500";
-      case "pending":
-        return "bg-yellow-500/10 text-yellow-500";
-      case "completed":
-        return "bg-blue-500/10 text-blue-500";
-      default:
-        return "bg-gray-500/10 text-gray-500";
+    try {
+      const response = await signAndSubmitTransaction({
+        sender: account.address,
+        data: {
+          function: CONTRACT_FUNCTIONS.PROMOTE_TO_GOVERNOR,
+          functionArguments: [selectedDAO.id, newGovernorAddress],
+        },
+      });
+
+      await aptosClient?.waitForTransaction({ 
+        transactionHash: response.hash 
+      });
+
+      toast({
+        title: "Member Promoted",
+        description: `Successfully promoted ${newGovernorAddress} to governor.`,
+      });
+      
+      setNewGovernorAddress("");
+      await refreshData();
+    } catch (error) {
+      console.error("Error promoting member:", error);
+      toast({
+        title: "Promotion Failed",
+        description: "Failed to promote member to governor.",
+        variant: "destructive",
+      });
     }
   };
+
+  const demoteGovernor = async (governorAddress: string) => {
+    if (!selectedDAO || !account) return;
+
+    try {
+      const response = await signAndSubmitTransaction({
+        sender: account.address,
+        data: {
+          function: CONTRACT_FUNCTIONS.DEMOTE_GOVERNOR,
+          functionArguments: [selectedDAO.id, governorAddress],
+        },
+      });
+
+      await aptosClient?.waitForTransaction({ 
+        transactionHash: response.hash 
+      });
+
+      toast({
+        title: "Governor Demoted",
+        description: `Successfully demoted ${governorAddress} from governor.`,
+      });
+      
+      await refreshData();
+    } catch (error) {
+      console.error("Error demoting governor:", error);
+      toast({
+        title: "Demotion Failed",
+        description: "Failed to demote governor.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const transferOwnership = async () => {
+    if (!selectedDAO || !account || !newOwnerAddress) return;
+
+    try {
+      const response = await signAndSubmitTransaction({
+        sender: account.address,
+        data: {
+          function: CONTRACT_FUNCTIONS.TRANSFER_DAO_OWNERSHIP,
+          functionArguments: [selectedDAO.id, newOwnerAddress],
+        },
+      });
+
+      await aptosClient?.waitForTransaction({ 
+        transactionHash: response.hash 
+      });
+
+      toast({
+        title: "Ownership Transferred",
+        description: `Successfully transferred ownership to ${newOwnerAddress}.`,
+      });
+      
+      setNewOwnerAddress("");
+      await refreshData();
+    } catch (error) {
+      console.error("Error transferring ownership:", error);
+      toast({
+        title: "Transfer Failed",
+        description: "Failed to transfer ownership.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const selectDAO = (dao: any) => {
+    setSelectedDAO(dao.dao_info);
+    setProposals(dao.proposals || []);
+    setTasks(dao.tasks || []);
+  };
+
+  const isDAOCreator = selectedDAO && account && selectedDAO.creator === account.address.toString();
+  const isGovernor = selectedDAO && account && selectedDAO.governors.includes(account.address.toString());
+  const hasAccess = isDAOCreator || isGovernor;
 
   if (!connected) {
     return (
@@ -219,6 +449,71 @@ export default function GovernancePage() {
     );
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen relative">
+        <div className="fixed inset-0 z-0">
+          <Aurora
+            colorStops={["#8B0000", "#660000", "#8B0000"]}
+            amplitude={1.2}
+            speed={0.3}
+            blend={0.8}
+          />
+        </div>
+        <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
+          <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
+            <CardContent className="p-8">
+              <div className="flex items-center justify-center space-x-4">
+                <div className="animate-spin h-8 w-8 border-4 border-red-500/30 border-t-red-500 rounded-full"></div>
+                <span className="text-white text-lg">Loading DAO data...</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen relative">
+        <div className="fixed inset-0 z-0">
+          <Aurora
+            colorStops={["#8B0000", "#660000", "#8B0000"]}
+            amplitude={1.2}
+            speed={0.3}
+            blend={0.8}
+          />
+        </div>
+        <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
+          <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
+            <CardHeader>
+              <CardTitle className="text-2xl text-white mb-4">
+                Access Denied
+              </CardTitle>
+              <CardDescription className="text-gray-300">
+                You need to be a Governor or DAO Creator to access this dashboard.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="text-sm text-gray-400">
+                  Your current role: {userProfile ? getUserTypeLabel(userProfile.user_type) : "Unknown"}
+                </div>
+                <Button 
+                  onClick={() => window.location.href = '/dao/dashboard'}
+                  className="bg-gradient-to-r from-red-900 to-red-700"
+                >
+                  Go to Dashboard
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen relative">
       <div className="fixed inset-0 z-0">
@@ -234,213 +529,243 @@ export default function GovernancePage() {
         {/* Header Section */}
         <div className="flex justify-between items-start mb-12">
           <div className="flex flex-col gap-4">
-            <h1 className="text-4xl font-bold text-white">Governor Dashboard</h1>
-            <p className="text-gray-400">Welcome to the governor dashboard. Here you can manage the DAO and its members.</p>
+            <div className="flex items-center gap-4">
+              <h1 className="text-4xl font-bold text-white">Governor Dashboard</h1>
+              <Button
+                onClick={refreshData}
+                disabled={refreshing}
+                variant="outline"
+                size="sm"
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+              >
+                {refreshing ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+            <p className="text-gray-400">
+              {selectedDAO ? `Managing ${selectedDAO.name}` : "Select a DAO to manage"}
+            </p>
           </div>
           <div className="flex flex-col items-end gap-3">
             <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-lg">
-              <Shield className="w-5 h-5 text-red-400" />
-              <span className="text-red-200">{daoContract.role}</span>
+              <Shield className="w-5 h-5 text-yellow-400" />
+              <span className="text-yellow-200">
+                {isDAOCreator ? "DAO Creator" : "Governor"}
+              </span>
             </div>
+            {selectedDAO && (
+              <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-lg">
+                <span className="text-gray-400">{selectedDAO.name}</span>
+              </div>
+            )}
             <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-lg">
-              <span className="text-gray-400">{daoContract.name}</span>
-            </div>
-            <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-lg">
-              <span className="text-red-200/80 font-mono">
+              <span className="text-red-200/80 font-mono text-sm">
                 {account?.address?.toString().slice(0, 6)}...{account?.address?.toString().slice(-4)}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Metrics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* Key Metrics Row */}
-          <InViewMotion>
+        {/* DAO Selection */}
+        {userEcosystem && userEcosystem.daos.length > 1 && (
+          <div className="mb-8">
             <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg bg-gradient-to-br from-red-900 to-red-700">
-                    <Users className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-400">Total Members</p>
-                    <p className="text-2xl font-bold text-white">
-                      {daoContract.overview.totalMembers}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </InViewMotion>
-
-          <InViewMotion>
-            <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg bg-gradient-to-br from-red-900 to-red-700">
-                    <Wallet className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-400">Treasury Balance</p>
-                    <p className="text-2xl font-bold text-white">
-                      {daoContract.overview.treasuryBalance}
-                    </p>
-                    <p className="text-sm text-green-500">
-                      {daoContract.overview.treasuryChange}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </InViewMotion>
-
-          <InViewMotion>
-            <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg bg-gradient-to-br from-red-900 to-red-700">
-                    <Vote className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-400">Your Voting Power</p>
-                    <p className="text-2xl font-bold text-white">
-                      {daoContract.votingPower.yourVotingPower}%
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </InViewMotion>
-
-          <InViewMotion>
-            <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg bg-gradient-to-br from-red-900 to-red-700">
-                    <Target className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-400">
-                      Proposal Success Rate
-                    </p>
-                    <p className="text-2xl font-bold text-white">
-                      {daoContract.governanceMetrics.proposalSuccessRate}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </InViewMotion>
-
-          {/* Voting Power Distribution - Span 2 columns */}
-          <InViewMotion>
-            <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl md:col-span-2">
               <CardHeader>
-                <CardTitle className="text-xl text-white">
-                  Voting Power Distribution
-                </CardTitle>
+                <CardTitle className="text-xl text-white">Select DAO to Manage</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-sm text-gray-300 mb-2">
-                      <span>Community</span>
-                      <span>{daoContract.votingPower.community}%</span>
-                    </div>
-                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {userEcosystem.daos
+                    .filter((dao: any) => dao.user_membership.is_governor || dao.user_membership.is_creator)
+                    .map((dao: any) => (
                       <div
-                        className="h-full bg-gradient-to-r from-red-900 to-red-700"
-                        style={{
-                          width: `${daoContract.votingPower.community}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-sm text-gray-300 mb-2">
-                      <span>Governors</span>
-                      <span>{daoContract.votingPower.governors}%</span>
-                    </div>
-                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-red-700 to-red-500"
-                        style={{
-                          width: `${daoContract.votingPower.governors}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
+                        key={dao.dao_info.id}
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          selectedDAO?.id === dao.dao_info.id
+                            ? "border-red-500 bg-red-500/10"
+                            : "border-white/20 bg-white/5 hover:border-red-400/50"
+                        }`}
+                        onClick={() => selectDAO(dao)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-gradient-to-br from-red-900 to-red-700">
+                            <Crown className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-white font-medium">{dao.dao_info.name}</h3>
+                            <p className="text-sm text-gray-400">
+                              {dao.user_membership.is_creator ? "Creator" : "Governor"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                 </div>
               </CardContent>
             </Card>
-          </InViewMotion>
+          </div>
+        )}
 
-          {/* Treasury Activity - Span 2 columns */}
-          <InViewMotion>
-            <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl md:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-xl text-white">
-                  Recent Treasury Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {daoContract.treasuryActivity.map((activity, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 bg-white/5 rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        {activity.type === "Inflow" ? (
-                          <ArrowUpRight className="w-5 h-5 text-green-500" />
-                        ) : (
-                          <ArrowDownRight className="w-5 h-5 text-red-500" />
-                        )}
-                        <span className="text-white">{activity.type}</span>
-                      </div>
-                      <div className="text-right">
-                        <p
-                          className={
-                            activity.type === "Inflow"
-                              ? "text-green-500"
-                              : "text-red-500"
-                          }
-                        >
-                          {activity.amount}
-                        </p>
-                        <p className="text-sm text-gray-400">{activity.date}</p>
-                      </div>
+        {selectedDAO && (
+          <>
+            {/* DAO Status Overview */}
+            <div className="mb-8">
+              <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
+                <CardHeader>
+                  <CardTitle className="text-xl text-white flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5" />
+                    DAO Overview & Governance Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div className="text-center">
+                      <p className="text-sm text-gray-400">DAO Status</p>
+                      <Badge className={selectedDAO.is_active ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}>
+                        {selectedDAO.is_active ? "Active" : "Inactive"}
+                      </Badge>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </InViewMotion>
-
-          {/* Members List - Span 2 columns */}
-          <InViewMotion>
-            <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl md:col-span-2">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-xl text-white">Members</CardTitle>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button
-                      className="bg-gradient-to-r from-red-900 to-red-700"
-                      onClick={generateInviteLink}
-                    >
-                      <UserPlus className="w-4 h-4 mr-2" />
-                      Invite Member
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="bg-black/90 border-red-900/20 text-white">
-                    <DialogHeader>
-                      <DialogTitle>Invite New Member</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 p-4">
-                      <p className="text-gray-400">
-                        Share this link to invite a new member:
+                    <div className="text-center">
+                      <p className="text-sm text-gray-400">Created</p>
+                      <p className="text-white font-medium">
+                        {new Date(selectedDAO.created_at * 1000).toLocaleDateString()}
                       </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-gray-400">Governance Token</p>
+                      <p className="text-white font-mono text-sm">
+                        {selectedDAO.governance_token.slice(0, 8)}...{selectedDAO.governance_token.slice(-8)}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-gray-400">Total Supply</p>
+                      <p className="text-white font-medium">
+                        {selectedDAO.total_supply.toLocaleString()} tokens
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6 pt-6 border-t border-white/10">
+                    <h4 className="text-white font-medium mb-4">Governance Settings</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Voting Period:</span>
+                        <span className="text-white">{Math.floor(selectedDAO.voting_period / 86400)} days</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Execution Delay:</span>
+                        <span className="text-white">{Math.floor(selectedDAO.execution_delay / 3600)} hours</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Proposal Threshold:</span>
+                        <span className="text-white">{selectedDAO.minimum_proposal_threshold} tokens</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Key Metrics Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <InViewMotion>
+                <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-lg bg-gradient-to-br from-red-900 to-red-700">
+                        <Users className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400">Total Members</p>
+                        <p className="text-2xl font-bold text-white">
+                          {selectedDAO.member_count}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </InViewMotion>
+
+              <InViewMotion>
+                <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-lg bg-gradient-to-br from-red-900 to-red-700">
+                        <Wallet className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400">Treasury Balance</p>
+                        <p className="text-2xl font-bold text-white">
+                          {selectedDAO.treasury_balance} APT
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </InViewMotion>
+
+              <InViewMotion>
+                <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-lg bg-gradient-to-br from-red-900 to-red-700">
+                        <Vote className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400">Total Proposals</p>
+                        <p className="text-2xl font-bold text-white">
+                          {selectedDAO.proposal_count}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </InViewMotion>
+
+              <InViewMotion>
+                <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-lg bg-gradient-to-br from-red-900 to-red-700">
+                        <Target className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400">Total Tasks</p>
+                        <p className="text-2xl font-bold text-white">
+                          {selectedDAO.task_count}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </InViewMotion>
+            </div>
+
+            {/* Management Actions */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              {/* Invite Members */}
+              <InViewMotion>
+                <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
+                  <CardHeader>
+                    <CardTitle className="text-xl text-white flex items-center gap-2">
+                      <UserPlus className="w-5 h-5" />
+                      Invite Members
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-gray-400 text-sm">
+                      Generate an invite link for new members to join your DAO
+                    </p>
+                    <Button
+                      onClick={generateInviteLink}
+                      className="bg-gradient-to-r from-red-900 to-red-700 w-full"
+                    >
+                      Generate Invite Link
+                    </Button>
+                    {inviteLink && (
                       <div className="flex gap-2">
                         <Input
                           value={inviteLink}
@@ -451,172 +776,401 @@ export default function GovernancePage() {
                           onClick={copyToClipboard}
                           className="bg-gradient-to-r from-red-900 to-red-700"
                         >
-                          {showCopied ? (
-                            <Check className="w-4 h-4" />
-                          ) : (
-                            <Copy className="w-4 h-4" />
-                          )}
+                          {showCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                         </Button>
                       </div>
-                      <p className="text-sm text-gray-500">
-                        Link expires in 24 hours
-                      </p>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {daoMembers.map((member, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 bg-white/5 rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Badge
-                          className={
-                            member.role === "Governor"
-                              ? "bg-red-900/50"
-                              : "bg-gray-800/50"
-                          }
-                        >
-                          {member.role}
-                        </Badge>
-                        <span className="text-white font-mono">
-                          {member.address}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-gray-400 text-sm">
-                          Joined: {member.joinedDate}
-                        </p>
-                        <p className="text-white">
-                          {member.votingPower} voting power
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </InViewMotion>
+                    )}
+                  </CardContent>
+                </Card>
+              </InViewMotion>
 
-          {/* Active Proposals with Voting - Full width */}
-          <InViewMotion>
-            <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl md:col-span-4">
-              <CardHeader>
-                <CardTitle className="text-xl text-white">
-                  Active Proposals
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {daoContract.recentProposals.map((proposal, index) => (
-                    <div key={index} className="p-4 bg-white/5 rounded-lg">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-gray-400">{proposal.id}</span>
-                            <h4 className="text-white font-medium">
-                              {proposal.title}
-                            </h4>
+              {/* DAO Creator Only - Promote to Governor */}
+              {isDAOCreator && (
+                <InViewMotion>
+                  <Card className="bg-white/5 border-yellow-400/20 backdrop-blur-xl">
+                    <CardHeader>
+                      <CardTitle className="text-xl text-white flex items-center gap-2">
+                        <Crown className="w-5 h-5 text-yellow-400" />
+                        Promote to Governor
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <p className="text-gray-400 text-sm">
+                        Promote a member to governor role (DAO Creator only)
+                      </p>
+                      <div className="flex gap-2">
+                        <Input
+                          value={newGovernorAddress}
+                          onChange={(e) => setNewGovernorAddress(e.target.value)}
+                          placeholder="Member address to promote"
+                          className="bg-white/5 border-yellow-900/20 text-white"
+                        />
+                        <Button
+                          onClick={promoteToGovernor}
+                          disabled={!newGovernorAddress}
+                          className="bg-gradient-to-r from-yellow-900 to-yellow-700"
+                        >
+                          Promote
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </InViewMotion>
+              )}
+            </div>
+
+            {/* DAO Creator Only - Advanced Management */}
+            {isDAOCreator && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <InViewMotion>
+                  <Card className="bg-white/5 border-yellow-400/20 backdrop-blur-xl">
+                    <CardHeader>
+                      <CardTitle className="text-xl text-white flex items-center gap-2">
+                        <GitBranch className="w-5 h-5 text-yellow-400" />
+                        Transfer Ownership
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <p className="text-gray-400 text-sm">
+                        Transfer DAO ownership to another member (irreversible)
+                      </p>
+                      <div className="flex gap-2">
+                        <Input
+                          value={newOwnerAddress}
+                          onChange={(e) => setNewOwnerAddress(e.target.value)}
+                          placeholder="New owner address"
+                          className="bg-white/5 border-yellow-900/20 text-white"
+                        />
+                        <Button
+                          onClick={transferOwnership}
+                          disabled={!newOwnerAddress}
+                          className="bg-gradient-to-r from-yellow-900 to-yellow-700"
+                        >
+                          Transfer
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </InViewMotion>
+
+                <InViewMotion>
+                  <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
+                    <CardHeader>
+                      <CardTitle className="text-xl text-white flex items-center gap-2">
+                        <Settings className="w-5 h-5" />
+                        DAO Settings
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">Voting Period:</span>
+                          <span className="text-white">{selectedDAO.voting_period}s</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">Execution Delay:</span>
+                          <span className="text-white">{selectedDAO.execution_delay}s</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">Proposal Threshold:</span>
+                          <span className="text-white">{selectedDAO.minimum_proposal_threshold}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </InViewMotion>
+              </div>
+            )}
+
+            {/* Governors List */}
+            <InViewMotion>
+              <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
+                <CardHeader>
+                  <CardTitle className="text-xl text-white flex items-center gap-2">
+                    <Crown className="w-5 h-5" />
+                    Governors ({selectedDAO.governors.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {selectedDAO.governors.map((governor, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-4 bg-white/5 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-gradient-to-br from-red-900 to-red-700">
+                            <Crown className="w-4 h-4 text-white" />
                           </div>
-                          <div className="flex items-center gap-3">
-                            <Badge className={getStatusColor(proposal.status)}>
-                              {proposal.status}
-                            </Badge>
-                            <div className="flex items-center gap-2 text-gray-400">
-                              <Timer className="w-4 h-4" />
-                              <span>{proposal.timeLeft}</span>
+                          <div>
+                            <p className="text-white font-mono text-sm">
+                              {governor.slice(0, 8)}...{governor.slice(-8)}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              {governor === selectedDAO.creator && (
+                                <Badge className="bg-yellow-500/20 text-yellow-400 text-xs">
+                                  Creator
+                                </Badge>
+                              )}
+                              <Badge className="bg-red-500/20 text-red-400 text-xs">
+                                Governor
+                              </Badge>
                             </div>
                           </div>
                         </div>
-                        {proposal.status === "active" && !proposal.yourVote && (
-                          <div className="flex gap-2">
-                            <Button
-                              onClick={() => handleVote(proposal.id, "yes")}
-                              className="bg-green-600 hover:bg-green-700"
-                              size="sm"
-                            >
-                              Vote Yes
-                            </Button>
-                            <Button
-                              onClick={() => handleVote(proposal.id, "no")}
-                              className="bg-red-600 hover:bg-red-700"
-                              size="sm"
-                            >
-                              Vote No
-                            </Button>
-                          </div>
-                        )}
-                        {proposal.yourVote && (
-                          <Badge className="bg-red-900/50 text-red-200">
-                            Your vote: {proposal.yourVote}
-                          </Badge>
+                        {isDAOCreator && governor !== selectedDAO.creator && (
+                          <Button
+                            onClick={() => demoteGovernor(governor)}
+                            size="sm"
+                            variant="destructive"
+                            className="bg-red-600/20 hover:bg-red-600/30"
+                          >
+                            <UserMinus className="w-4 h-4 mr-1" />
+                            Demote
+                          </Button>
                         )}
                       </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm text-gray-300">
-                          <span>Votes</span>
-                          <span>Quorum: {proposal.quorum}%</span>
-                        </div>
-                        <div className="flex gap-2 h-2">
-                          <div
-                            className="bg-green-500 rounded-l"
-                            style={{ width: `${proposal.votes.yes}%` }}
-                          />
-                          <div
-                            className="bg-red-500 rounded-r"
-                            style={{ width: `${proposal.votes.no}%` }}
-                          />
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-green-500">
-                            {proposal.votes.yes}% Yes
-                          </span>
-                          <span className="text-red-500">
-                            {proposal.votes.no}% No
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </InViewMotion>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </InViewMotion>
 
-          {/* Governance Metrics Section */}
-          <div className="col-span-full mt-6">
-            <h2 className="text-2xl font-semibold text-white mb-6">Governance Metrics</h2>
-            <div className="grid grid-cols-4 gap-6">
-              <div className="bg-black/40 rounded-xl p-8 backdrop-blur-sm border border-red-900/10">
-                <div className="flex flex-col gap-3">
-                  <h3 className="text-gray-400 text-sm font-medium">Proposal Success Rate</h3>
-                  <p className="text-5xl font-bold text-white">{daoContract.governanceMetrics.proposalSuccessRate}</p>
-                </div>
-              </div>
-              <div className="bg-black/40 rounded-xl p-8 backdrop-blur-sm border border-red-900/10">
-                <div className="flex flex-col gap-3">
-                  <h3 className="text-gray-400 text-sm font-medium">Average Quorum</h3>
-                  <p className="text-5xl font-bold text-white">{daoContract.governanceMetrics.averageQuorum}</p>
-                </div>
-              </div>
-              <div className="bg-black/40 rounded-xl p-8 backdrop-blur-sm border border-red-900/10">
-                <div className="flex flex-col gap-3">
-                  <h3 className="text-gray-400 text-sm font-medium">Average Voting Period</h3>
-                  <p className="text-5xl font-bold text-white">{daoContract.governanceMetrics.averageVotingPeriod}</p>
-                </div>
-              </div>
-              <div className="bg-black/40 rounded-xl p-8 backdrop-blur-sm border border-red-900/10">
-                <div className="flex flex-col gap-3">
-                  <h3 className="text-gray-400 text-sm font-medium">Governor Participation</h3>
-                  <p className="text-5xl font-bold text-white">{daoContract.governanceMetrics.governorParticipation}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+            {/* Proposals Section */}
+            <InViewMotion>
+              <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl mt-6">
+                <CardHeader>
+                  <CardTitle className="text-xl text-white flex items-center gap-2">
+                    <Vote className="w-5 h-5" />
+                    DAO Proposals ({proposals.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {proposals.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-gray-400">No proposals found for this DAO.</p>
+                      </div>
+                    ) : (
+                      proposals.slice(0, 10).map((proposal, index) => (
+                        <div
+                          key={index}
+                          className="p-4 bg-white/5 rounded-lg border border-white/10"
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <h4 className="text-white font-medium">{proposal.title}</h4>
+                                <Badge className={getProposalStatusColor(proposal.status)}>
+                                  {getProposalStatusLabel(proposal.status)}
+                                </Badge>
+                              </div>
+                              <p className="text-gray-400 text-sm mb-3">
+                                {proposal.description}
+                              </p>
+                              <div className="flex items-center gap-4 text-sm">
+                                <span className="text-gray-400">
+                                  Proposer: {proposal.proposer.slice(0, 8)}...{proposal.proposer.slice(-8)}
+                                </span>
+                                <span className="text-gray-400">
+                                  ID: {proposal.id}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Voting Progress */}
+                          <div className="mt-4">
+                            <div className="flex justify-between text-sm text-gray-300 mb-2">
+                              <span>Voting Progress</span>
+                              <span>Quorum: {proposal.quorum_threshold}%</span>
+                            </div>
+                            <div className="flex gap-2 h-2 rounded-full overflow-hidden">
+                              <div
+                                className="bg-green-500"
+                                style={{ 
+                                  width: `${(proposal.votes_for / Math.max(proposal.total_votes, 1)) * 100}%` 
+                                }}
+                              />
+                              <div
+                                className="bg-red-500"
+                                style={{ 
+                                  width: `${(proposal.votes_against / Math.max(proposal.total_votes, 1)) * 100}%` 
+                                }}
+                              />
+                            </div>
+                            <div className="flex justify-between text-sm mt-2">
+                              <span className="text-green-400">
+                                For: {proposal.votes_for}
+                              </span>
+                              <span className="text-red-400">
+                                Against: {proposal.votes_against}
+                              </span>
+                              <span className="text-gray-400">
+                                Total: {proposal.total_votes}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Proposal Timeline */}
+                          <div className="mt-4 text-xs text-gray-400">
+                            <div className="flex justify-between">
+                              <span>Created: {new Date(proposal.created_at * 1000).toLocaleDateString()}</span>
+                              <span>Ends: {new Date(proposal.end_time * 1000).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    {proposals.length > 10 && (
+                      <div className="text-center pt-4">
+                        <p className="text-gray-400 text-sm">
+                          And {proposals.length - 10} more proposals...
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </InViewMotion>
+
+            {/* Tasks Section */}
+            <InViewMotion>
+              <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl mt-6">
+                <CardHeader>
+                  <CardTitle className="text-xl text-white flex items-center gap-2">
+                    <Target className="w-5 h-5" />
+                    DAO Tasks ({tasks.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {tasks.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-gray-400">No tasks found for this DAO.</p>
+                      </div>
+                    ) : (
+                      tasks.slice(0, 10).map((task, index) => (
+                        <div
+                          key={index}
+                          className="p-4 bg-white/5 rounded-lg border border-white/10"
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <h4 className="text-white font-medium">{task.title}</h4>
+                                <Badge className={getTaskStatusColor(task.status)}>
+                                  {getTaskStatusLabel(task.status)}
+                                </Badge>
+                              </div>
+                              <p className="text-gray-400 text-sm mb-3">
+                                {task.description}
+                              </p>
+                              <div className="flex items-center gap-4 text-sm">
+                                <span className="text-gray-400">
+                                  Creator: {task.creator.slice(0, 8)}...{task.creator.slice(-8)}
+                                </span>
+                                {task.assignee && (
+                                  <span className="text-gray-400">
+                                    Assignee: {task.assignee.slice(0, 8)}...{task.assignee.slice(-8)}
+                                  </span>
+                                )}
+                                <span className="text-gray-400">
+                                  ID: {task.id}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Task Details */}
+                          <div className="mt-4 grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-gray-400">Reward</p>
+                              <p className="text-white font-medium">{task.reward} APT</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-400">Deadline</p>
+                              <p className="text-white font-medium">
+                                {new Date(task.deadline * 1000).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {/* Task Timeline */}
+                          <div className="mt-4 text-xs text-gray-400">
+                            <div className="flex justify-between">
+                              <span>Created: {new Date(task.created_at * 1000).toLocaleDateString()}</span>
+                              {task.completed_at > 0 && (
+                                <span>Completed: {new Date(task.completed_at * 1000).toLocaleDateString()}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    {tasks.length > 10 && (
+                      <div className="text-center pt-4">
+                        <p className="text-gray-400 text-sm">
+                          And {tasks.length - 10} more tasks...
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </InViewMotion>
+
+            {/* Recent Members */}
+            <InViewMotion>
+              <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl mt-6">
+                <CardHeader>
+                  <CardTitle className="text-xl text-white flex items-center gap-2">
+                    <Users className="w-5 h-5" />
+                    Recent Members
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {selectedDAO.members.slice(0, 10).map((member, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-white/5 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-gradient-to-br from-blue-900 to-blue-700">
+                            <Users className="w-4 h-4 text-white" />
+                          </div>
+                          <div>
+                            <p className="text-white font-mono text-sm">
+                              {member.slice(0, 8)}...{member.slice(-8)}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge className="bg-blue-500/20 text-blue-400 text-xs">
+                                Member
+                              </Badge>
+                              {selectedDAO.governors.includes(member) && (
+                                <Badge className="bg-red-500/20 text-red-400 text-xs">
+                                  Governor
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {selectedDAO.members.length > 10 && (
+                      <div className="text-center pt-4">
+                        <p className="text-gray-400 text-sm">
+                          And {selectedDAO.members.length - 10} more members...
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </InViewMotion>
+          </>
+        )}
       </div>
     </div>
   );
