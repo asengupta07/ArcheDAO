@@ -32,6 +32,10 @@ module DAOri::core {
     const E_INVALID_VALIDATION: u64 = 15;
     const E_PROPOSAL_NOT_FOUND: u64 = 16;
     const E_AIP_NOT_FOUND: u64 = 17;
+    const E_INSUFFICIENT_STAKE: u64 = 18;
+    const E_NO_STAKE_TO_UNSTAKE: u64 = 19;
+    const E_MINIMUM_STAKE_REQUIRED: u64 = 20;
+    const E_CANNOT_UNSTAKE_DURING_VOTING: u64 = 21;
 
     // Constants
     const PLATFORM_FEE_RATE: u64 = 250; // 2.5%
@@ -41,6 +45,7 @@ module DAOri::core {
     const TASK_CREATION_FEE: u64 = 10000000; // 0.1 APT
     const AI_DELEGATE_CREATION_FEE: u64 = 300000000; // 3 APT
     const PROPOSAL_CREATION_FEE: u64 = 20000000; // 0.2 APT
+    const MINIMUM_STAKE_AMOUNT: u64 = 1000000; // 0.01 APT minimum stake to vote
 
     // User types
     const USER_TYPE_MEMBER: u8 = 0;
@@ -91,7 +96,8 @@ module DAOri::core {
         creator: address,
         governors: vector<address>,
         members: vector<address>,
-        voting_power_distribution: Table<address, u64>,
+        staked_amounts: Table<address, u64>, // Changed from voting_power_distribution
+        total_staked: u64, // Total amount staked in this DAO
         total_supply: u64,
         governance_token: String,
         minimum_proposal_threshold: u64,
@@ -103,6 +109,7 @@ module DAOri::core {
         is_active: bool,
         created_at: u64,
         settings: DAOSettings,
+        active_proposals: vector<u64>, // Track active proposals for unstaking restrictions
     }
 
     struct DAOSettings has store, drop, copy {
@@ -261,7 +268,7 @@ module DAOri::core {
         creator: address,
         governors: vector<address>,
         members: vector<address>,
-        total_supply: u64,
+        total_staked: u64, // Changed from total_supply
         governance_token: String,
         minimum_proposal_threshold: u64,
         voting_period: u64,
@@ -506,6 +513,35 @@ module DAOri::core {
         timestamp: u64,
     }
 
+    #[event]
+    struct StakeDeposited has drop, store {
+        user: address,
+        dao_id: u64,
+        amount: u64,
+        new_total_stake: u64,
+        new_voting_power: u64,
+        timestamp: u64,
+    }
+
+    #[event]
+    struct StakeWithdrawn has drop, store {
+        user: address,
+        dao_id: u64,
+        amount: u64,
+        remaining_stake: u64,
+        new_voting_power: u64,
+        timestamp: u64,
+    }
+
+    #[event]
+    struct MinimumVotingPowerAllocated has drop, store {
+        dao_id: u64,
+        total_minimum_power: u64,
+        power_per_governor: u64,
+        eligible_users: vector<address>,
+        timestamp: u64,
+    }
+
     // Helper function to generate unique DAO code
     fun generate_dao_code(dao_id: u64, creator: address, timestamp: u64): String {
         let data = vector::empty<u8>();
@@ -596,45 +632,6 @@ module DAOri::core {
             aips: table::new(),
             aips_by_author: table::new(),
             next_aip_id: 1,
-        });
-    }
-
-    // User registration and profile management
-    public entry fun register_user(
-        user: &signer,
-        user_type: u8,
-        notification_preferences: vector<u8>
-    ) acquires PlatformStats {
-        let user_addr = signer::address_of(user);
-        
-        // Create user profile
-        let profile = UserProfile {
-            address: user_addr,
-            user_type,
-            reputation_score: 100,
-            contribution_score: 0,
-            is_premium: false,
-            premium_expires: 0,
-            governance_participation: 0,
-            voting_power: 0,
-            delegated_to: option::none(),
-            delegators: vector::empty(),
-            created_at: timestamp::now_seconds(),
-            notification_preferences,
-        };
-
-        move_to(user, profile);
-
-        // Update platform stats
-        let stats = borrow_global_mut<PlatformStats>(ADMIN_ADDRESS);
-        stats.total_users = stats.total_users + 1;
-        stats.last_updated = timestamp::now_seconds();
-
-        // Emit event
-        event::emit(UserRegistered {
-            user_address: user_addr,
-            user_type,
-            timestamp: timestamp::now_seconds(),
         });
     }
 
@@ -746,13 +743,17 @@ module DAOri::core {
             require_verification,
         };
         
-        // Initialize members vector with creator
+        // Initialize members vector with creator and initial governors
         let members = vector::empty<address>();
         vector::push_back(&mut members, creator_addr);
-        
-        // Initialize voting power distribution with creator
-        let voting_power_distribution = table::new<address, u64>();
-        table::add(&mut voting_power_distribution, creator_addr, 1000); // Creator gets 1000 voting power
+        let j = 0;
+        while (j < vector::length(&initial_governors)) {
+            let gov_addr = *vector::borrow(&initial_governors, j);
+            if (!vector::contains(&members, &gov_addr)) {
+                vector::push_back(&mut members, gov_addr);
+            };
+            j = j + 1;
+        };
         
         let dao = DAO {
             id: dao_id,
@@ -762,7 +763,8 @@ module DAOri::core {
             creator: creator_addr,
             governors: initial_governors,
             members,
-            voting_power_distribution,
+            staked_amounts: table::new(),
+            total_staked: 0,
             total_supply: 1000,
             governance_token,
             minimum_proposal_threshold,
@@ -774,11 +776,13 @@ module DAOri::core {
             is_active: true,
             created_at,
             settings,
+            active_proposals: vector::empty(),
         };
         
-        // Update creator's voting power in their profile (guaranteed to exist now)
+        // Update creator's contribution score in their profile (guaranteed to exist now)
         let profile = borrow_global_mut<UserProfile>(creator_addr);
-        profile.voting_power = profile.voting_power + 1000;
+        // Note: Creator no longer gets automatic voting power - they must stake like everyone else
+        profile.contribution_score = profile.contribution_score + 100; // +100 for DAO creation
 
         // Store DAO in central registry
         table::add(&mut registry.daos, dao_id, dao);
@@ -805,6 +809,31 @@ module DAOri::core {
             source: string::utf8(b"dao_creation"),
             timestamp: timestamp::now_seconds(),
         });
+
+        // Emit minimum voting power allocation event
+        let eligible_users = vector::empty<address>();
+        vector::push_back(&mut eligible_users, creator_addr);
+        let i = 0;
+        while (i < vector::length(&initial_governors)) {
+            let gov = *vector::borrow(&initial_governors, i);
+            if (gov != creator_addr) {
+                vector::push_back(&mut eligible_users, gov);
+            };
+            i = i + 1;
+        };
+        let total_eligible = vector::length(&eligible_users);
+        let power_per_user = if (total_eligible > 0) {
+            minimum_voting_power / total_eligible
+        } else {
+            0
+        };
+        event::emit(MinimumVotingPowerAllocated {
+            dao_id,
+            total_minimum_power: minimum_voting_power,
+            power_per_governor: power_per_user,
+            eligible_users,
+            timestamp: timestamp::now_seconds(),
+        });
     }
 
     // Proposal creation
@@ -815,7 +844,7 @@ module DAOri::core {
         description: String,
         execution_payload: vector<u8>,
         linked_aip: Option<u64>
-    ) acquires DAORegistry, ProposalRegistry, PlatformStats, PlatformConfig {
+    ) acquires DAORegistry, ProposalRegistry, PlatformStats, PlatformConfig, UserProfile {
         let proposer_addr = signer::address_of(proposer);
         let config = borrow_global<PlatformConfig>(ADMIN_ADDRESS);
         
@@ -868,11 +897,20 @@ module DAOri::core {
         // Update proposal registry
         proposal_registry.next_proposal_id = proposal_id + 1;
 
+        // Add proposal to DAO's active proposals list
+        vector::push_back(&mut dao.active_proposals, proposal_id);
+
         // Update platform stats
         let stats = borrow_global_mut<PlatformStats>(ADMIN_ADDRESS);
         stats.total_proposals = stats.total_proposals + 1;
         stats.platform_revenue = stats.platform_revenue + config.proposal_creation_fee;
         stats.last_updated = timestamp::now_seconds();
+
+        // Award contribution score for proposal creation
+        if (exists<UserProfile>(proposer_addr)) {
+            let profile = borrow_global_mut<UserProfile>(proposer_addr);
+            profile.contribution_score = profile.contribution_score + 20; // +20 for proposal creation
+        };
 
         // Emit events
         event::emit(ProposalCreated {
@@ -895,7 +933,7 @@ module DAOri::core {
         voter: &signer,
         proposal_id: u64,
         vote: u8
-    ) acquires ProposalRegistry, UserProfile {
+    ) acquires ProposalRegistry, UserProfile, DAORegistry {
         let voter_addr = signer::address_of(voter);
         
         // Get proposal from registry
@@ -910,14 +948,22 @@ module DAOri::core {
         // Verify user hasn't already voted
         assert!(!table::contains(&proposal.voters, voter_addr), E_ALREADY_VOTED);
 
-        // Get user's voting power
-        let profile = borrow_global<UserProfile>(voter_addr);
-        let voting_power = profile.voting_power;
+        // Check if user can vote (either has reserved power or meets minimum stake requirement)
+        assert!(can_user_vote(voter_addr, proposal.dao_id), E_INSUFFICIENT_STAKE);
+        
+        // Calculate total voting power (reserved + staked)
+        let voting_power = calculate_voting_power(voter_addr, proposal.dao_id);
+        
+        // Update contribution score for governance participation
+        if (exists<UserProfile>(voter_addr)) {
+            let profile = borrow_global_mut<UserProfile>(voter_addr);
+            profile.contribution_score = profile.contribution_score + 5; // +5 for voting participation
+        };
 
         // Record vote
         table::add(&mut proposal.voters, voter_addr, vote);
         
-        // Update vote counts
+        // Update vote counts using proportional voting power
         if (vote == VOTE_YES) {
             proposal.yes_votes = proposal.yes_votes + voting_power;
         } else if (vote == VOTE_NO) {
@@ -947,7 +993,7 @@ module DAOri::core {
         bounty_amount: u64,
         required_skills: vector<String>,
         deadline: u64
-    ) acquires DAORegistry, TaskRegistry, PlatformStats, PlatformConfig {
+    ) acquires DAORegistry, TaskRegistry, PlatformStats, PlatformConfig, UserProfile {
         let creator_addr = signer::address_of(creator);
         let config = borrow_global<PlatformConfig>(ADMIN_ADDRESS);
         
@@ -1003,6 +1049,12 @@ module DAOri::core {
         stats.platform_revenue = stats.platform_revenue + config.task_creation_fee;
         stats.last_updated = timestamp::now_seconds();
 
+        // Award contribution score for task creation
+        if (exists<UserProfile>(creator_addr)) {
+            let profile = borrow_global_mut<UserProfile>(creator_addr);
+            profile.contribution_score = profile.contribution_score + 15; // +15 for task creation
+        };
+
         // Emit events
         event::emit(TaskCreated {
             task_id,
@@ -1026,7 +1078,7 @@ module DAOri::core {
         description: String,
         philosophy: String,
         communication_channels: vector<String>
-    ) acquires PlatformStats, PlatformConfig {
+    ) acquires PlatformStats, PlatformConfig, UserProfile {
         let delegate_addr = signer::address_of(delegate);
         let config = borrow_global<PlatformConfig>(ADMIN_ADDRESS);
         
@@ -1063,6 +1115,12 @@ module DAOri::core {
         stats.total_delegates = stats.total_delegates + 1;
         stats.platform_revenue = stats.platform_revenue + config.delegate_registration_fee;
         stats.last_updated = timestamp::now_seconds();
+
+        // Award contribution score for delegate registration (community service)
+        if (exists<UserProfile>(delegate_addr)) {
+            let profile = borrow_global_mut<UserProfile>(delegate_addr);
+            profile.contribution_score = profile.contribution_score + 35; // +35 for delegate registration
+        };
 
         // Emit events
         event::emit(DelegateRegistered {
@@ -1122,7 +1180,7 @@ module DAOri::core {
         preferences: vector<u8>,
         risk_tolerance: u8,
         training_data: vector<u8>
-    ) acquires PlatformStats, PlatformConfig {
+    ) acquires PlatformStats, PlatformConfig, UserProfile {
         let owner_addr = signer::address_of(owner);
         let config = borrow_global<PlatformConfig>(ADMIN_ADDRESS);
         
@@ -1163,6 +1221,12 @@ module DAOri::core {
         stats.total_ai_delegates = stats.total_ai_delegates + 1;
         stats.platform_revenue = stats.platform_revenue + config.ai_delegate_creation_fee;
         stats.last_updated = timestamp::now_seconds();
+
+        // Award contribution score for AI delegate creation (innovation contribution)
+        if (exists<UserProfile>(owner_addr)) {
+            let profile = borrow_global_mut<UserProfile>(owner_addr);
+            profile.contribution_score = profile.contribution_score + 45; // +45 for AI delegate creation
+        };
 
         // Emit events
         event::emit(AIDelegateCreated {
@@ -1205,7 +1269,7 @@ module DAOri::core {
         task_id: u64,
         submission_hash: vector<u8>,
         completion_proof: String
-    ) acquires TaskRegistry {
+    ) acquires TaskRegistry, UserProfile {
         let assignee_addr = signer::address_of(assignee);
         
         // Get task from registry
@@ -1221,6 +1285,12 @@ module DAOri::core {
         task.submission_hash = option::some(submission_hash);
         task.completion_proof = option::some(completion_proof);
         task.state = TASK_SUBMITTED;
+        
+        // Award contribution score for task submission
+        if (exists<UserProfile>(assignee_addr)) {
+            let profile = borrow_global_mut<UserProfile>(assignee_addr);
+            profile.contribution_score = profile.contribution_score + 25; // +25 for task submission
+        };
     }
 
     // Task validation
@@ -1228,7 +1298,7 @@ module DAOri::core {
         validator: &signer,
         task_id: u64,
         is_valid: bool
-    ) acquires TaskRegistry {
+    ) acquires TaskRegistry, UserProfile {
         let validator_addr = signer::address_of(validator);
         
         // Get task from registry
@@ -1242,6 +1312,12 @@ module DAOri::core {
         // Add validation
         table::add(&mut task.validation_results, validator_addr, is_valid);
         vector::push_back(&mut task.validators, validator_addr);
+        
+        // Award contribution score for validation work
+        if (exists<UserProfile>(validator_addr)) {
+            let profile = borrow_global_mut<UserProfile>(validator_addr);
+            profile.contribution_score = profile.contribution_score + 10; // +10 for validation work
+        };
         
         // Check if task should be completed (simple majority)
         let total_validators = vector::length(&task.validators);
@@ -1258,6 +1334,15 @@ module DAOri::core {
         // If majority validates, complete task
         if (valid_count > total_validators / 2) {
             task.state = TASK_COMPLETED;
+            
+            // Award contribution score to task assignee for completion
+            if (option::is_some(&task.assignee)) {
+                let assignee_addr = *option::borrow(&task.assignee);
+                if (exists<UserProfile>(assignee_addr)) {
+                    let profile = borrow_global_mut<UserProfile>(assignee_addr);
+                    profile.contribution_score = profile.contribution_score + 50; // +50 for task completion
+                };
+            };
         };
     }
 
@@ -1308,7 +1393,7 @@ module DAOri::core {
         description: String,
         category: String,
         github_link: Option<String>
-    ) acquires AIPRegistry {
+    ) acquires AIPRegistry, UserProfile {
         let author_addr = signer::address_of(author);
         
         // Get next AIP ID from registry
@@ -1342,6 +1427,12 @@ module DAOri::core {
         
         // Update AIP registry
         aip_registry.next_aip_id = aip_id + 1;
+        
+        // Award contribution score for AIP creation
+        if (exists<UserProfile>(author_addr)) {
+            let profile = borrow_global_mut<UserProfile>(author_addr);
+            profile.contribution_score = profile.contribution_score + 30; // +30 for AIP creation
+        };
     }
 
     // Update AIP status
@@ -1350,7 +1441,7 @@ module DAOri::core {
         aip_id: u64,
         status: String,
         implementation_status: String
-    ) acquires AIPRegistry {
+    ) acquires AIPRegistry, UserProfile {
         let author_addr = signer::address_of(author);
         
         // Get AIP from registry
@@ -1365,6 +1456,12 @@ module DAOri::core {
         aip.status = status;
         aip.implementation_status = implementation_status;
         aip.updated_at = timestamp::now_seconds();
+        
+        // Award contribution score for AIP updates (especially for implementation progress)
+        if (exists<UserProfile>(author_addr)) {
+            let profile = borrow_global_mut<UserProfile>(author_addr);
+            profile.contribution_score = profile.contribution_score + 15; // +15 for AIP updates
+        };
     }
 
     // Link AIP to proposal
@@ -1372,7 +1469,7 @@ module DAOri::core {
         aip_author: &signer,
         aip_id: u64,
         proposal_id: u64
-    ) acquires AIPRegistry {
+    ) acquires AIPRegistry, UserProfile {
         let author_addr = signer::address_of(aip_author);
         
         // Get AIP from registry
@@ -1386,6 +1483,12 @@ module DAOri::core {
         // Link proposal
         vector::push_back(&mut aip.linked_proposals, proposal_id);
         aip.updated_at = timestamp::now_seconds();
+        
+        // Award contribution score for linking AIP to proposal (shows implementation progress)
+        if (exists<UserProfile>(author_addr)) {
+            let profile = borrow_global_mut<UserProfile>(author_addr);
+            profile.contribution_score = profile.contribution_score + 10; // +10 for AIP-proposal linking
+        };
     }
 
     // Update user reputation
@@ -1464,13 +1567,7 @@ module DAOri::core {
             vector::push_back(&mut dao.members, user_addr);
         };
         
-        // Initialize voting power
-        table::add(&mut dao.voting_power_distribution, user_addr, 100); // Base voting power
-        dao.total_supply = dao.total_supply + 100;
-        
-        // Update user profile voting power (guaranteed to exist now)
-        let profile = borrow_global_mut<UserProfile>(user_addr);
-        profile.voting_power = profile.voting_power + 100;
+        // Note: Users no longer get automatic voting power - they must stake to get voting power
     }
 
     // Join DAO using DAO code (now much simpler!)
@@ -1531,13 +1628,7 @@ module DAOri::core {
             vector::push_back(&mut dao.members, user_addr);
         };
         
-        // Initialize voting power
-        table::add(&mut dao.voting_power_distribution, user_addr, 100); // Base voting power
-        dao.total_supply = dao.total_supply + 100;
-        
-        // Update user profile voting power (guaranteed to exist now)
-        let profile = borrow_global_mut<UserProfile>(user_addr);
-        profile.voting_power = profile.voting_power + 100;
+        // Note: Users no longer get automatic voting power - they must stake to get voting power
     }
 
 
@@ -1561,9 +1652,9 @@ module DAOri::core {
         };
         
         // Remove voting power
-        if (table::contains(&dao.voting_power_distribution, user_addr)) {
-            let voting_power = table::remove(&mut dao.voting_power_distribution, user_addr);
-            dao.total_supply = dao.total_supply - voting_power;
+        if (table::contains(&dao.staked_amounts, user_addr)) {
+            let voting_power = table::remove(&mut dao.staked_amounts, user_addr);
+            dao.total_staked = dao.total_staked - voting_power;
             
             // Update user profile
             let profile = borrow_global_mut<UserProfile>(user_addr);
@@ -1575,7 +1666,7 @@ module DAOri::core {
     public entry fun execute_proposal(
         executor: &signer,
         proposal_id: u64
-    ) acquires ProposalRegistry, DAORegistry {
+    ) acquires ProposalRegistry, DAORegistry, UserProfile {
         let executor_addr = signer::address_of(executor);
         
         // Get proposal from registry
@@ -1602,18 +1693,38 @@ module DAOri::core {
         // Execute proposal
         proposal.state = PROPOSAL_EXECUTED;
         
+        // Remove from active proposals list
+        let dao_registry_mut = borrow_global_mut<DAORegistry>(ADMIN_ADDRESS);
+        let dao_mut = table::borrow_mut(&mut dao_registry_mut.daos, proposal.dao_id);
+        let (found, index) = vector::index_of(&dao_mut.active_proposals, &proposal_id);
+        if (found) {
+            vector::remove(&mut dao_mut.active_proposals, index);
+        };
+        
         // Generate execution hash
         let execution_data = vector::empty<u8>();
         vector::append(&mut execution_data, proposal.execution_payload);
         vector::append(&mut execution_data, bcs::to_bytes(&timestamp::now_seconds()));
         proposal.execution_hash = option::some(hash::sha3_256(execution_data));
+        
+        // Award contribution score to executor for successful execution
+        if (exists<UserProfile>(executor_addr)) {
+            let profile = borrow_global_mut<UserProfile>(executor_addr);
+            profile.contribution_score = profile.contribution_score + 40; // +40 for proposal execution
+        };
+        
+        // Award contribution score to proposal creator for successful proposal
+        if (exists<UserProfile>(proposal.proposer)) {
+            let profile = borrow_global_mut<UserProfile>(proposal.proposer);
+            profile.contribution_score = profile.contribution_score + 25; // +25 for successful proposal
+        };
     }
 
     // Cancel proposal
     public entry fun cancel_proposal(
         proposer: &signer,
         proposal_id: u64
-    ) acquires ProposalRegistry {
+    ) acquires ProposalRegistry, DAORegistry {
         let proposer_addr = signer::address_of(proposer);
         
         // Get proposal from registry
@@ -1627,6 +1738,14 @@ module DAOri::core {
         
         // Cancel proposal
         proposal.state = PROPOSAL_CANCELLED;
+        
+        // Remove from active proposals list
+        let dao_registry_mut = borrow_global_mut<DAORegistry>(ADMIN_ADDRESS);
+        let dao_mut = table::borrow_mut(&mut dao_registry_mut.daos, proposal.dao_id);
+        let (found, index) = vector::index_of(&dao_mut.active_proposals, &proposal_id);
+        if (found) {
+            vector::remove(&mut dao_mut.active_proposals, index);
+        };
     }
 
     // Update DAO settings
@@ -1680,8 +1799,10 @@ module DAOri::core {
         // Verify owner
         assert!(dao.creator == owner_addr, E_NOT_AUTHORIZED);
         
-        // Verify new governor is a member of the DAO
-        assert!(vector::contains(&dao.members, &new_governor), E_NOT_AUTHORIZED);
+        // If new governor is not yet a member, add to members list automatically
+        if (!vector::contains(&dao.members, &new_governor)) {
+            vector::push_back(&mut dao.members, new_governor);
+        };
         
         // Add to governors if not already there
         if (!vector::contains(&dao.governors, &new_governor)) {
@@ -1693,12 +1814,38 @@ module DAOri::core {
             let profile = borrow_global_mut<UserProfile>(new_governor);
             profile.user_type = USER_TYPE_GOVERNOR;
         };
-
+        
         // Emit event
         event::emit(GovernorAdded {
             dao_id,
             new_governor,
             added_by: owner_addr,
+            timestamp: timestamp::now_seconds(),
+        });
+        
+        // Inline reserved power allocation logic (recalculate)
+        let eligible_users = vector::empty<address>();
+        vector::push_back(&mut eligible_users, dao.creator);
+        let i = 0;
+        while (i < vector::length(&dao.governors)) {
+            let gov = *vector::borrow(&dao.governors, i);
+            if (gov != dao.creator) {
+                vector::push_back(&mut eligible_users, gov);
+            };
+            i = i + 1;
+        };
+        let base_eligible = vector::length(&eligible_users);
+        let total_eligible = base_eligible;
+        let power_per_user = if (total_eligible > 0) {
+            dao.settings.minimum_voting_power / total_eligible
+        } else {
+            0
+        };
+        event::emit(MinimumVotingPowerAllocated {
+            dao_id,
+            total_minimum_power: dao.settings.minimum_voting_power,
+            power_per_governor: power_per_user,
+            eligible_users,
             timestamp: timestamp::now_seconds(),
         });
     }
@@ -1741,6 +1888,32 @@ module DAOri::core {
             promoted_by: owner_addr,
             timestamp: timestamp::now_seconds(),
         });
+
+        // Emit updated minimum voting power allocation
+        let eligible_users = vector::empty<address>();
+        vector::push_back(&mut eligible_users, dao.creator);
+        let i = 0;
+        while (i < vector::length(&dao.governors)) {
+            let gov = *vector::borrow(&dao.governors, i);
+            if (gov != dao.creator) {
+                vector::push_back(&mut eligible_users, gov);
+            };
+            i = i + 1;
+        };
+        let base_eligible = vector::length(&eligible_users);
+        let total_eligible = base_eligible;
+        let power_per_user = if (total_eligible > 0) {
+            dao.settings.minimum_voting_power / total_eligible
+        } else {
+            0
+        };
+        event::emit(MinimumVotingPowerAllocated {
+            dao_id,
+            total_minimum_power: dao.settings.minimum_voting_power,
+            power_per_governor: power_per_user,
+            eligible_users,
+            timestamp: timestamp::now_seconds(),
+        });
     }
 
     // Demote governor to member (only DAO owner can do this)
@@ -1779,6 +1952,32 @@ module DAOri::core {
             dao_id,
             governor_address,
             demoted_by: owner_addr,
+            timestamp: timestamp::now_seconds(),
+        });
+
+        // Emit updated minimum voting power allocation (now redistributed among fewer people)
+        let eligible_users = vector::empty<address>();
+        vector::push_back(&mut eligible_users, dao.creator);
+        let i = 0;
+        while (i < vector::length(&dao.governors)) {
+            let gov = *vector::borrow(&dao.governors, i);
+            if (gov != dao.creator) {
+                vector::push_back(&mut eligible_users, gov);
+            };
+            i = i + 1;
+        };
+        let base_eligible = vector::length(&eligible_users);
+        let total_eligible = base_eligible;
+        let power_per_user = if (total_eligible > 0) {
+            dao.settings.minimum_voting_power / total_eligible
+        } else {
+            0
+        };
+        event::emit(MinimumVotingPowerAllocated {
+            dao_id,
+            total_minimum_power: dao.settings.minimum_voting_power,
+            power_per_governor: power_per_user,
+            eligible_users,
             timestamp: timestamp::now_seconds(),
         });
     }
@@ -1830,6 +2029,32 @@ module DAOri::core {
             new_owner,
             timestamp: timestamp::now_seconds(),
         });
+
+        // Emit updated minimum voting power allocation (new owner gets reserved power)
+        let eligible_users = vector::empty<address>();
+        vector::push_back(&mut eligible_users, dao.creator);
+        let i = 0;
+        while (i < vector::length(&dao.governors)) {
+            let gov = *vector::borrow(&dao.governors, i);
+            if (gov != dao.creator) {
+                vector::push_back(&mut eligible_users, gov);
+            };
+            i = i + 1;
+        };
+        let base_eligible = vector::length(&eligible_users);
+        let total_eligible = base_eligible;
+        let power_per_user = if (total_eligible > 0) {
+            dao.settings.minimum_voting_power / total_eligible
+        } else {
+            0
+        };
+        event::emit(MinimumVotingPowerAllocated {
+            dao_id,
+            total_minimum_power: dao.settings.minimum_voting_power,
+            power_per_governor: power_per_user,
+            eligible_users,
+            timestamp: timestamp::now_seconds(),
+        });
     }
 
     // Delegate vote on behalf of delegators
@@ -1837,7 +2062,7 @@ module DAOri::core {
         delegate: &signer,
         proposal_id: u64,
         vote: u8
-    ) acquires Delegate, ProposalRegistry {
+    ) acquires Delegate, ProposalRegistry, UserProfile {
         let delegate_addr = signer::address_of(delegate);
         let delegate_profile = borrow_global_mut<Delegate>(delegate_addr);
         
@@ -1872,6 +2097,12 @@ module DAOri::core {
             delegate_profile.performance_metrics.total_proposals_voted + 1;
         vector::push_back(&mut delegate_profile.voting_history, proposal_id);
         
+        // Award contribution score for delegate voting (representing community)
+        if (exists<UserProfile>(delegate_addr)) {
+            let profile = borrow_global_mut<UserProfile>(delegate_addr);
+            profile.contribution_score = profile.contribution_score + 8; // +8 for delegate voting
+        };
+        
         // Emit event
         event::emit(VoteCasted {
             proposal_id,
@@ -1887,7 +2118,7 @@ module DAOri::core {
         ai_delegate_owner: &signer,
         proposal_id: u64,
         predicted_vote: u8
-    ) acquires AIDelegate, ProposalRegistry {
+    ) acquires AIDelegate, ProposalRegistry, UserProfile {
         let owner_addr = signer::address_of(ai_delegate_owner);
         let ai_delegate = borrow_global_mut<AIDelegate>(owner_addr);
         
@@ -1926,6 +2157,12 @@ module DAOri::core {
         
         // Update AI delegate metrics
         vector::push_back(&mut ai_delegate.voting_history, proposal_id);
+        
+        // Award contribution score for AI delegate voting (automated governance participation)
+        if (exists<UserProfile>(owner_addr)) {
+            let profile = borrow_global_mut<UserProfile>(owner_addr);
+            profile.contribution_score = profile.contribution_score + 6; // +6 for AI delegate voting
+        };
         
         // Emit event
         event::emit(VoteCasted {
@@ -2032,7 +2269,7 @@ module DAOri::core {
         let registry = borrow_global<DAORegistry>(ADMIN_ADDRESS);
         assert!(table::contains(&registry.daos, dao_id), E_DAO_NOT_FOUND);
         let dao = table::borrow(&registry.daos, dao_id);
-        (dao.id, dao.dao_code, dao.name, dao.description, dao.creator, dao.total_supply, dao.treasury_balance, dao.is_active)
+        (dao.id, dao.dao_code, dao.name, dao.description, dao.creator, dao.total_staked, dao.treasury_balance, dao.is_active)
     }
 
     #[view]
@@ -2041,7 +2278,7 @@ module DAOri::core {
         assert!(table::contains(&registry.dao_by_code, dao_code), E_DAO_NOT_FOUND);
         let dao_id = *table::borrow(&registry.dao_by_code, dao_code);
         let dao = table::borrow(&registry.daos, dao_id);
-        (dao.id, dao.dao_code, dao.name, dao.description, dao.creator, dao.total_supply, dao.treasury_balance, dao.is_active)
+        (dao.id, dao.dao_code, dao.name, dao.description, dao.creator, dao.total_staked, dao.treasury_balance, dao.is_active)
     }
 
     #[view]
@@ -2169,7 +2406,7 @@ module DAOri::core {
         delegate: &signer,
         proposal_ids: vector<u64>,
         votes: vector<u8>
-    ) acquires Delegate, ProposalRegistry {
+    ) acquires Delegate, ProposalRegistry, UserProfile {
         let len = vector::length(&proposal_ids);
         assert!(len == vector::length(&votes), E_INVALID_PROPOSAL);
         
@@ -2193,7 +2430,7 @@ module DAOri::core {
             vector::length(&dao.members),
             dao.proposal_count,
             dao.task_count,
-            dao.total_supply,
+            dao.total_staked, // Changed from total_supply to total_staked
             dao.treasury_balance
         )
     }
@@ -2242,7 +2479,7 @@ module DAOri::core {
                         creator: dao.creator,
                         governors: dao.governors,
                         members: dao.members,
-                        total_supply: dao.total_supply,
+                        total_staked: dao.total_staked,
                         governance_token: dao.governance_token,
                         minimum_proposal_threshold: dao.minimum_proposal_threshold,
                         voting_period: dao.voting_period,
@@ -2301,8 +2538,8 @@ module DAOri::core {
         assert!(table::contains(&registry.daos, dao_id), E_DAO_NOT_FOUND);
         let dao = table::borrow(&registry.daos, dao_id);
         
-        if (table::contains(&dao.voting_power_distribution, user_address)) {
-            *table::borrow(&dao.voting_power_distribution, user_address)
+        if (table::contains(&dao.staked_amounts, user_address)) {
+            *table::borrow(&dao.staked_amounts, user_address)
         } else {
             0
         }
@@ -2316,8 +2553,8 @@ module DAOri::core {
         let dao = table::borrow(&registry.daos, dao_id);
         
         let is_member = vector::contains(&dao.members, &user_address);
-        let voting_power = if (is_member && table::contains(&dao.voting_power_distribution, user_address)) {
-            *table::borrow(&dao.voting_power_distribution, user_address)
+        let voting_power = if (is_member && table::contains(&dao.staked_amounts, user_address)) {
+            *table::borrow(&dao.staked_amounts, user_address)
         } else {
             0
         };
@@ -2546,7 +2783,7 @@ module DAOri::core {
                         creator: dao.creator,
                         governors: dao.governors,
                         members: dao.members,
-                        total_supply: dao.total_supply,
+                        total_staked: dao.total_staked,
                         governance_token: dao.governance_token,
                         minimum_proposal_threshold: dao.minimum_proposal_threshold,
                         voting_period: dao.voting_period,
@@ -2561,8 +2798,8 @@ module DAOri::core {
                     };
                     
                     // Build user membership info
-                    let user_voting_power = if (table::contains(&dao.voting_power_distribution, user_address)) {
-                        *table::borrow(&dao.voting_power_distribution, user_address)
+                    let user_voting_power = if (table::contains(&dao.staked_amounts, user_address)) {
+                        *table::borrow(&dao.staked_amounts, user_address)
                     } else { 0 };
                     
                     total_voting_power = total_voting_power + user_voting_power;
@@ -2887,5 +3124,380 @@ module DAOri::core {
         
         // Migration logic would go here
         // This is a placeholder for future upgrade functionality
+    }
+
+    // Staking functions for weighted voting power
+    public entry fun stake_for_voting_power(
+        user: &signer,
+        dao_id: u64,
+        amount: u64
+    ) acquires DAORegistry, UserProfile {
+        let user_addr = signer::address_of(user);
+        
+        // Verify minimum stake amount
+        assert!(amount >= MINIMUM_STAKE_AMOUNT, E_MINIMUM_STAKE_REQUIRED);
+        
+        // Get DAO from registry
+        let registry = borrow_global_mut<DAORegistry>(ADMIN_ADDRESS);
+        assert!(table::contains(&registry.daos, dao_id), E_DAO_NOT_FOUND);
+        let dao = table::borrow_mut(&mut registry.daos, dao_id);
+        
+        // Verify user is a member of the DAO
+        assert!(vector::contains(&dao.members, &user_addr), E_NOT_AUTHORIZED);
+        
+        // Withdraw APT from user
+        let staked_coins = coin::withdraw<AptosCoin>(user, amount);
+        
+        // Transfer staked coins to DAO treasury (simplified - in production you'd have a proper escrow)
+        coin::deposit(ADMIN_ADDRESS, staked_coins); // For now, use admin address as treasury
+        
+        // Update user's staked amount
+        if (table::contains(&dao.staked_amounts, user_addr)) {
+            let current_stake = table::borrow_mut(&mut dao.staked_amounts, user_addr);
+            *current_stake = *current_stake + amount;
+        } else {
+            table::add(&mut dao.staked_amounts, user_addr, amount);
+        };
+        
+        // Update total staked in DAO
+        dao.total_staked = dao.total_staked + amount;
+        
+        // Update user's voting power in profile (now represents total staked across all DAOs)
+        if (exists<UserProfile>(user_addr)) {
+            let profile = borrow_global_mut<UserProfile>(user_addr);
+            profile.voting_power = profile.voting_power + amount;
+        };
+
+        // Emit staking event
+        event::emit(StakeDeposited {
+            user: user_addr,
+            dao_id,
+            amount,
+            new_total_stake: dao.total_staked,
+            new_voting_power: calculate_voting_power(user_addr, dao_id),
+            timestamp: timestamp::now_seconds(),
+        });
+    }
+
+    public entry fun unstake_voting_power(
+        user: &signer,
+        dao_id: u64,
+        amount: u64
+    ) acquires DAORegistry, UserProfile {
+        let user_addr = signer::address_of(user);
+        
+        // Get DAO from registry
+        let registry = borrow_global_mut<DAORegistry>(ADMIN_ADDRESS);
+        assert!(table::contains(&registry.daos, dao_id), E_DAO_NOT_FOUND);
+        let dao = table::borrow_mut(&mut registry.daos, dao_id);
+        
+        // Verify user has enough staked
+        assert!(table::contains(&dao.staked_amounts, user_addr), E_NO_STAKE_TO_UNSTAKE);
+        let current_stake = table::borrow_mut(&mut dao.staked_amounts, user_addr);
+        assert!(*current_stake >= amount, E_INSUFFICIENT_STAKE);
+        
+        // Check if there are active proposals that would prevent unstaking
+        // Users cannot unstake if they have voted on active proposals
+        let active_proposal_count = vector::length(&dao.active_proposals);
+        if (active_proposal_count > 0) {
+            // For now, allow unstaking but in production you might want to restrict this
+            // You could check if user has voted on any active proposals
+        };
+        
+        // Update user's staked amount
+        *current_stake = *current_stake - amount;
+        
+        // If stake becomes 0, remove from table
+        if (*current_stake == 0) {
+            table::remove(&mut dao.staked_amounts, user_addr);
+        };
+        
+        // Update total staked in DAO
+        dao.total_staked = dao.total_staked - amount;
+        
+        // Transfer APT back to user from admin treasury
+        // Note: In production, you'd withdraw from proper escrow/treasury
+        // For now, the admin needs to have the signer capability to withdraw
+        // This would be handled by a proper treasury system in production
+        
+        // Update user's voting power in profile
+        if (exists<UserProfile>(user_addr)) {
+            let profile = borrow_global_mut<UserProfile>(user_addr);
+            profile.voting_power = profile.voting_power - amount;
+        };
+
+        // Emit unstaking event
+        let remaining_stake = get_user_stake_amount(user_addr, dao_id);
+        event::emit(StakeWithdrawn {
+            user: user_addr,
+            dao_id,
+            amount,
+            remaining_stake,
+            new_voting_power: calculate_voting_power(user_addr, dao_id),
+            timestamp: timestamp::now_seconds(),
+        });
+    }
+
+    // Get user's voting power in a specific DAO (proportional to their stake)
+    #[view]
+    public fun calculate_voting_power(user_address: address, dao_id: u64): u64 acquires DAORegistry {
+        let registry = borrow_global<DAORegistry>(ADMIN_ADDRESS);
+        assert!(table::contains(&registry.daos, dao_id), E_DAO_NOT_FOUND);
+        let dao = table::borrow(&registry.daos, dao_id);
+        // Inline reserved voting power logic
+        let is_owner = dao.creator == user_address;
+        let is_governor = vector::contains(&dao.governors, &user_address);
+        let base_eligible = vector::length(&dao.governors);
+        let total_eligible = if (is_owner && !vector::contains(&dao.governors, &dao.creator)) {
+            base_eligible + 1
+        } else {
+            base_eligible
+        };
+        let reserved_power = if (is_owner || is_governor) {
+            if (total_eligible > 0) {
+                dao.settings.minimum_voting_power / total_eligible
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+        // Calculate staked voting power (proportional to stake)
+        let staked_power = if (dao.total_staked == 0) {
+            0
+        } else {
+            let user_stake = if (table::contains(&dao.staked_amounts, user_address)) {
+                *table::borrow(&dao.staked_amounts, user_address)
+            } else {
+                0
+            };
+            if (user_stake == 0) {
+                0
+            } else {
+                let remaining_power = 10000 - dao.settings.minimum_voting_power;
+                (user_stake * remaining_power) / dao.total_staked
+            }
+        };
+        reserved_power + staked_power
+    }
+
+    // Get the reserved voting power for a user (governors and owner get minimum allocation)
+    #[view]
+    public fun get_user_reserved_voting_power(user_address: address, dao_id: u64): u64 acquires DAORegistry {
+        let registry = borrow_global<DAORegistry>(ADMIN_ADDRESS);
+        assert!(table::contains(&registry.daos, dao_id), E_DAO_NOT_FOUND);
+        let dao = table::borrow(&registry.daos, dao_id);
+        
+        // Check if user is owner or governor
+        let is_owner = dao.creator == user_address;
+        let is_governor = vector::contains(&dao.governors, &user_address);
+        
+        if (is_owner || is_governor) {
+            // Count total eligible users (owner + governors)
+            let total_eligible = vector::length(&dao.governors);
+            if (dao.creator != user_address || !vector::contains(&dao.governors, &dao.creator)) {
+                total_eligible = total_eligible + 1; // Add owner if not already in governors
+            };
+            
+            // Divide minimum voting power equally among eligible users
+            if (total_eligible > 0) {
+                dao.settings.minimum_voting_power / total_eligible
+            } else {
+                0
+            }
+        } else {
+            0
+        }
+    }
+
+    // Get the staked voting power for a user (separate from reserved power)
+    #[view]
+    public fun get_user_staked_voting_power(user_address: address, dao_id: u64): u64 acquires DAORegistry {
+        let registry = borrow_global<DAORegistry>(ADMIN_ADDRESS);
+        assert!(table::contains(&registry.daos, dao_id), E_DAO_NOT_FOUND);
+        let dao = table::borrow(&registry.daos, dao_id);
+        if (dao.total_staked == 0) {
+            return 0
+        };
+        let user_stake = if (table::contains(&dao.staked_amounts, user_address)) {
+            *table::borrow(&dao.staked_amounts, user_address)
+        } else {
+            0
+        };
+        if (user_stake == 0) {
+            0
+        } else {
+            let remaining_power = 10000 - dao.settings.minimum_voting_power;
+            (user_stake * remaining_power) / dao.total_staked
+        }
+    }
+
+    // Get user's actual stake amount in a DAO
+    #[view]
+    public fun get_user_stake_amount(user_address: address, dao_id: u64): u64 acquires DAORegistry {
+        let registry = borrow_global<DAORegistry>(ADMIN_ADDRESS);
+        assert!(table::contains(&registry.daos, dao_id), E_DAO_NOT_FOUND);
+        let dao = table::borrow(&registry.daos, dao_id);
+        
+        if (table::contains(&dao.staked_amounts, user_address)) {
+            *table::borrow(&dao.staked_amounts, user_address)
+        } else {
+            0
+        }
+    }
+
+    // Get total staked amount in a DAO
+    #[view]
+    public fun get_dao_total_staked(dao_id: u64): u64 acquires DAORegistry {
+        let registry = borrow_global<DAORegistry>(ADMIN_ADDRESS);
+        assert!(table::contains(&registry.daos, dao_id), E_DAO_NOT_FOUND);
+        let dao = table::borrow(&registry.daos, dao_id);
+        dao.total_staked
+    }
+
+    // Get minimum stake amount required to vote
+    #[view]
+    public fun get_minimum_stake_amount(): u64 {
+        MINIMUM_STAKE_AMOUNT
+    }
+
+    // Get user's voting power percentage (multiply by 100 for percentage)
+    #[view]
+    public fun get_user_voting_power_percentage(user_address: address, dao_id: u64): u64 acquires DAORegistry {
+        let voting_power = calculate_voting_power(user_address, dao_id);
+        // voting_power is already multiplied by 10000 for precision
+        // Divide by 100 to get percentage (still with 2 decimal places of precision)
+        voting_power / 100
+    }
+
+
+
+    // Get active proposal count in a DAO
+    #[view]
+    public fun get_active_proposal_count(dao_id: u64): u64 acquires DAORegistry {
+        let registry = borrow_global<DAORegistry>(ADMIN_ADDRESS);
+        assert!(table::contains(&registry.daos, dao_id), E_DAO_NOT_FOUND);
+        let dao = table::borrow(&registry.daos, dao_id);
+        vector::length(&dao.active_proposals)
+    }
+
+    // Get all staking info for a user in a DAO
+    #[view]
+    public fun get_user_staking_info(user_address: address, dao_id: u64): (u64, u64, u64, bool) acquires DAORegistry {
+        let stake_amount = get_user_stake_amount(user_address, dao_id);
+        let voting_power = calculate_voting_power(user_address, dao_id);
+        let voting_percentage = get_user_voting_power_percentage(user_address, dao_id);
+        let can_vote = can_user_vote(user_address, dao_id);
+        
+        (stake_amount, voting_power, voting_percentage, can_vote)
+    }
+
+    // Get comprehensive voting power breakdown for a user
+    #[view]
+    public fun get_user_voting_power_breakdown(user_address: address, dao_id: u64): (u64, u64, u64, u64, bool) acquires DAORegistry {
+        let reserved_power = get_user_reserved_voting_power(user_address, dao_id);
+        let staked_power = get_user_staked_voting_power(user_address, dao_id);
+        let total_power = reserved_power + staked_power;
+        let stake_amount = get_user_stake_amount(user_address, dao_id);
+        let is_governor_or_owner = reserved_power > 0;
+        
+        (reserved_power, staked_power, total_power, stake_amount, is_governor_or_owner)
+    }
+
+    // Check if user can vote (either has minimum stake OR is governor/owner)
+    #[view]
+    public fun can_user_vote(user_address: address, dao_id: u64): bool acquires DAORegistry {
+        let reserved_power = get_user_reserved_voting_power(user_address, dao_id);
+        if (reserved_power > 0) {
+            true // Governors and owners can always vote
+        } else {
+            let user_stake = get_user_stake_amount(user_address, dao_id);
+            user_stake >= MINIMUM_STAKE_AMOUNT
+        }
+    }
+
+    // Get the minimum voting power percentage reserved for governors and owner
+    #[view]
+    public fun get_dao_minimum_voting_power(dao_id: u64): u64 acquires DAORegistry {
+        let registry = borrow_global<DAORegistry>(ADMIN_ADDRESS);
+        assert!(table::contains(&registry.daos, dao_id), E_DAO_NOT_FOUND);
+        let dao = table::borrow(&registry.daos, dao_id);
+        dao.settings.minimum_voting_power
+    }
+
+    // Get all governors and owner with their reserved voting power
+    #[view]
+    public fun get_reserved_voting_power_allocation(dao_id: u64): (vector<address>, u64, u64) acquires DAORegistry {
+        let registry = borrow_global<DAORegistry>(ADMIN_ADDRESS);
+        assert!(table::contains(&registry.daos, dao_id), E_DAO_NOT_FOUND);
+        let dao = table::borrow(&registry.daos, dao_id);
+        
+        // Build list of eligible users (owner + governors, no duplicates)
+        let eligible_users = vector::empty<address>();
+        vector::push_back(&mut eligible_users, dao.creator);
+        
+        let i = 0;
+        while (i < vector::length(&dao.governors)) {
+            let gov = *vector::borrow(&dao.governors, i);
+            if (gov != dao.creator) {
+                vector::push_back(&mut eligible_users, gov);
+            };
+            i = i + 1;
+        };
+        
+        let base_eligible = vector::length(&eligible_users);
+        let total_eligible = base_eligible;
+        let power_per_user = if (total_eligible > 0) {
+            dao.settings.minimum_voting_power / total_eligible
+        } else {
+            0
+        };
+        
+        (eligible_users, power_per_user, dao.settings.minimum_voting_power)
+    }
+
+    // Check if a user is eligible for reserved voting power (owner or governor)
+    #[view]
+    public fun is_eligible_for_reserved_power(user_address: address, dao_id: u64): bool acquires DAORegistry {
+        let registry = borrow_global<DAORegistry>(ADMIN_ADDRESS);
+        assert!(table::contains(&registry.daos, dao_id), E_DAO_NOT_FOUND);
+        let dao = table::borrow(&registry.daos, dao_id);
+        
+        dao.creator == user_address || vector::contains(&dao.governors, &user_address)
+    }
+
+    // Get complete voting power system overview for a DAO
+    #[view]
+    public fun get_dao_voting_power_overview(dao_id: u64): (u64, u64, u64, vector<address>, u64) acquires DAORegistry {
+        let registry = borrow_global<DAORegistry>(ADMIN_ADDRESS);
+        assert!(table::contains(&registry.daos, dao_id), E_DAO_NOT_FOUND);
+        let dao = table::borrow(&registry.daos, dao_id);
+        // Inline reserved power allocation logic
+        let eligible_users = vector::empty<address>();
+        vector::push_back(&mut eligible_users, dao.creator);
+        let i = 0;
+        while (i < vector::length(&dao.governors)) {
+            let gov = *vector::borrow(&dao.governors, i);
+            if (gov != dao.creator) {
+                vector::push_back(&mut eligible_users, gov);
+            };
+            i = i + 1;
+        };
+        let base_eligible = vector::length(&eligible_users);
+        let total_eligible = base_eligible;
+        let power_per_user = if (total_eligible > 0) {
+            dao.settings.minimum_voting_power / total_eligible
+        } else {
+            0
+        };
+        let total_minimum = dao.settings.minimum_voting_power;
+        let remaining_power = 10000 - total_minimum;
+        (
+            total_minimum,        // Total reserved power percentage (e.g., 2000 = 20.00%)
+            remaining_power,      // Power available through staking (e.g., 8000 = 80.00%)
+            power_per_user,       // Power per governor/owner (e.g., 1000 = 10.00%)
+            eligible_users,       // List of governors and owner
+            dao.total_staked      // Total APT staked in the DAO
+        )
     }
 }
