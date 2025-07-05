@@ -1,48 +1,65 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import Beams from '@/components/ui/beams';
-import { useWallet } from '@aptos-labs/wallet-adapter-react';
-import { Aptos, AptosConfig, Network as AptosNetwork } from '@aptos-labs/ts-sdk';
-import { toast } from '@/hooks/use-toast';
-import { WalletSelector } from '@/components/WalletSelector';
-import { AlertCircle } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import Beams from "@/components/ui/beams";
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
+import {
+  Aptos,
+  AptosConfig,
+  Network as AptosNetwork,
+} from "@aptos-labs/ts-sdk";
+import { toast } from "@/hooks/use-toast";
+import { WalletSelector } from "@/components/WalletSelector";
+import { AlertCircle } from "lucide-react";
 
 // Contract information from environment variables
-const MODULE_ADDRESS = process.env.NEXT_PUBLIC_MODULE_ADDRESS || '';
-const MODULE_NAME = process.env.NEXT_PUBLIC_MODULE_NAME || '';
+const MODULE_ADDRESS = process.env.NEXT_PUBLIC_MODULE_ADDRESS || "";
+const MODULE_NAME = process.env.NEXT_PUBLIC_MODULE_NAME || "";
 
 export default function OnboardingPage() {
-  const { account, connected, network, wallet, signAndSubmitTransaction } = useWallet();
+  const { account, connected, network, wallet, signAndSubmitTransaction } =
+    useWallet();
   const [isLoading, setIsLoading] = useState(false);
   const [aptosClient, setAptosClient] = useState<Aptos | null>(null);
-  
+
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    governanceToken: '',
-    minimumProposalThreshold: '100',
-    votingPeriod: '7',
-    executionDelay: '2',
-    initialGovernors: '',
-    proposalCreationFee: '10',
-    taskCreationFee: '5',
-    minimumVotingPower: '1',
+    name: "",
+    description: "",
+    governanceToken: "",
+    minimumProposalThreshold: "100",
+    votingPeriod: "7",
+    executionDelay: "2",
+    initialGovernors: "",
+    proposalCreationFee: "10",
+    taskCreationFee: "5",
+    minimumVotingPower: "1",
     delegationEnabled: true,
     aiDelegatesEnabled: false,
     publicMembership: true,
-    requireVerification: false
+    requireVerification: false,
   });
 
   const [currentStep, setCurrentStep] = useState(0);
 
   const steps = [
-    { title: 'DAO Details', description: 'Basic information about your DAO' },
-    { title: 'Governance Settings', description: 'Configure voting and governance parameters' },
-    { title: 'Advanced Settings', description: 'Configure advanced DAO features' },
-    { title: 'Finalization', description: 'Review and create your DAO' }
+    { title: "DAO Details", description: "Basic information about your DAO" },
+    {
+      title: "Governance Settings",
+      description: "Configure voting and governance parameters",
+    },
+    {
+      title: "Advanced Settings",
+      description: "Configure advanced DAO features",
+    },
+    { title: "Finalization", description: "Review and create your DAO" },
   ];
 
   // Initialize Aptos client for devnet
@@ -61,10 +78,10 @@ export default function OnboardingPage() {
       setIsLoading(true);
 
       // Parse governors string to vector of addresses
-      const governors = formData.initialGovernors
-        .split(',')
-        .map(addr => addr.trim())
-        .filter(addr => addr.length > 0);
+      const governors = (formData.initialGovernors || "")
+        .split(",")
+        .map((addr) => addr.trim())
+        .filter((addr) => addr.length > 0);
 
       const transaction: any = {
         data: {
@@ -83,7 +100,7 @@ export default function OnboardingPage() {
             formData.delegationEnabled,
             formData.aiDelegatesEnabled,
             formData.publicMembership,
-            formData.requireVerification
+            formData.requireVerification,
           ],
         },
       };
@@ -93,33 +110,34 @@ export default function OnboardingPage() {
 
       toast({
         title: "DAO Created Successfully",
-        description: "Your DAO has been created successfully on the Aptos network.",
+        description:
+          "Your DAO has been created successfully on the Aptos network.",
       });
 
       // Reset form
       setFormData({
-        name: '',
-        description: '',
-        governanceToken: '',
-        minimumProposalThreshold: '100',
-        votingPeriod: '7',
-        executionDelay: '2',
-        initialGovernors: '',
-        proposalCreationFee: '10',
-        taskCreationFee: '5',
-        minimumVotingPower: '1',
+        name: "",
+        description: "",
+        governanceToken: "",
+        minimumProposalThreshold: "100",
+        votingPeriod: "7",
+        executionDelay: "2",
+        initialGovernors: "",
+        proposalCreationFee: "10",
+        taskCreationFee: "5",
+        minimumVotingPower: "1",
         delegationEnabled: true,
         aiDelegatesEnabled: false,
         publicMembership: true,
-        requireVerification: false
+        requireVerification: false,
       });
       setCurrentStep(0);
-
     } catch (error) {
       console.error("Error creating DAO:", error);
       toast({
         title: "DAO Creation Failed",
-        description: error instanceof Error ? error.message : "Failed to create DAO.",
+        description:
+          error instanceof Error ? error.message : "Failed to create DAO.",
         variant: "destructive",
       });
     } finally {
@@ -137,20 +155,28 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value, type } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+      [name]:
+        type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
     }));
   };
 
   const isStepValid = () => {
     switch (currentStep) {
       case 0:
-        return formData.name.trim() !== '' && formData.description.trim() !== '';
+        return (
+          formData.name.trim() !== "" && formData.description.trim() !== ""
+        );
       case 1:
-        return formData.governanceToken.trim() !== '' && formData.minimumProposalThreshold.trim() !== '';
+        return (
+          formData.governanceToken.trim() !== "" &&
+          formData.minimumProposalThreshold.trim() !== ""
+        );
       case 2:
         return true;
       case 3:
@@ -210,7 +236,9 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-white font-medium">Minimum Proposal Threshold</label>
+              <label className="text-white font-medium">
+                Minimum Proposal Threshold
+              </label>
               <input
                 type="number"
                 name="minimumProposalThreshold"
@@ -223,7 +251,9 @@ export default function OnboardingPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-white font-medium">Voting Period (days)</label>
+              <label className="text-white font-medium">
+                Voting Period (days)
+              </label>
               <input
                 type="number"
                 name="votingPeriod"
@@ -236,7 +266,9 @@ export default function OnboardingPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-white font-medium">Execution Delay (days)</label>
+              <label className="text-white font-medium">
+                Execution Delay (days)
+              </label>
               <input
                 type="number"
                 name="executionDelay"
@@ -249,7 +281,9 @@ export default function OnboardingPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-white font-medium">Initial Governors</label>
+              <label className="text-white font-medium">
+                Initial Governors
+              </label>
               <input
                 type="text"
                 name="initialGovernors"
@@ -266,7 +300,9 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-white font-medium">Proposal Creation Fee</label>
+              <label className="text-white font-medium">
+                Proposal Creation Fee
+              </label>
               <input
                 type="number"
                 name="proposalCreationFee"
@@ -278,7 +314,9 @@ export default function OnboardingPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-white font-medium">Task Creation Fee</label>
+              <label className="text-white font-medium">
+                Task Creation Fee
+              </label>
               <input
                 type="number"
                 name="taskCreationFee"
@@ -290,7 +328,9 @@ export default function OnboardingPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-white font-medium">Minimum Voting Power</label>
+              <label className="text-white font-medium">
+                Minimum Voting Power
+              </label>
               <input
                 type="number"
                 name="minimumVotingPower"
@@ -310,7 +350,9 @@ export default function OnboardingPage() {
                   onChange={handleInputChange}
                   className="w-5 h-5 text-red-600 bg-white/10 border-white/20 rounded focus:ring-red-500 focus:ring-2"
                 />
-                <label className="text-white font-medium">Enable Delegation</label>
+                <label className="text-white font-medium">
+                  Enable Delegation
+                </label>
               </div>
 
               <div className="flex items-center space-x-3">
@@ -321,7 +363,9 @@ export default function OnboardingPage() {
                   onChange={handleInputChange}
                   className="w-5 h-5 text-red-600 bg-white/10 border-white/20 rounded focus:ring-red-500 focus:ring-2"
                 />
-                <label className="text-white font-medium">Enable AI Delegates</label>
+                <label className="text-white font-medium">
+                  Enable AI Delegates
+                </label>
               </div>
 
               <div className="flex items-center space-x-3">
@@ -332,7 +376,9 @@ export default function OnboardingPage() {
                   onChange={handleInputChange}
                   className="w-5 h-5 text-red-600 bg-white/10 border-white/20 rounded focus:ring-red-500 focus:ring-2"
                 />
-                <label className="text-white font-medium">Public Membership</label>
+                <label className="text-white font-medium">
+                  Public Membership
+                </label>
               </div>
 
               <div className="flex items-center space-x-3">
@@ -343,7 +389,9 @@ export default function OnboardingPage() {
                   onChange={handleInputChange}
                   className="w-5 h-5 text-red-600 bg-white/10 border-white/20 rounded focus:ring-red-500 focus:ring-2"
                 />
-                <label className="text-white font-medium">Require Verification</label>
+                <label className="text-white font-medium">
+                  Require Verification
+                </label>
               </div>
             </div>
           </div>
@@ -353,8 +401,12 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-6">
             <div className="text-center mb-6">
-              <h3 className="text-2xl font-bold text-white mb-2">Review Your DAO</h3>
-              <p className="text-white/70">Please review the information before creating your DAO</p>
+              <h3 className="text-2xl font-bold text-white mb-2">
+                Review Your DAO
+              </h3>
+              <p className="text-white/70">
+                Please review the information before creating your DAO
+              </p>
             </div>
 
             <div className="grid gap-4">
@@ -362,7 +414,9 @@ export default function OnboardingPage() {
                 <CardContent className="p-4">
                   <div className="flex justify-between items-center">
                     <span className="text-white/70">DAO Name</span>
-                    <span className="text-white font-medium">{formData.name}</span>
+                    <span className="text-white font-medium">
+                      {formData.name}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -371,7 +425,9 @@ export default function OnboardingPage() {
                 <CardContent className="p-4">
                   <div className="flex justify-between items-start">
                     <span className="text-white/70">Description</span>
-                    <span className="text-white font-medium text-right max-w-xs">{formData.description}</span>
+                    <span className="text-white font-medium text-right max-w-xs">
+                      {formData.description}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -380,7 +436,9 @@ export default function OnboardingPage() {
                 <CardContent className="p-4">
                   <div className="flex justify-between items-center">
                     <span className="text-white/70">Governance Token</span>
-                    <span className="text-white font-medium">{formData.governanceToken}</span>
+                    <span className="text-white font-medium">
+                      {formData.governanceToken}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -389,7 +447,9 @@ export default function OnboardingPage() {
                 <CardContent className="p-4">
                   <div className="flex justify-between items-center">
                     <span className="text-white/70">Voting Period</span>
-                    <span className="text-white font-medium">{formData.votingPeriod} days</span>
+                    <span className="text-white font-medium">
+                      {formData.votingPeriod} days
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -397,8 +457,12 @@ export default function OnboardingPage() {
               <Card className="bg-white/10 backdrop-blur-md border-white/20">
                 <CardContent className="p-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-white/70">Min. Proposal Threshold</span>
-                    <span className="text-white font-medium">{formData.minimumProposalThreshold}</span>
+                    <span className="text-white/70">
+                      Min. Proposal Threshold
+                    </span>
+                    <span className="text-white font-medium">
+                      {formData.minimumProposalThreshold}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -407,7 +471,9 @@ export default function OnboardingPage() {
                 <CardContent className="p-4">
                   <div className="flex justify-between items-center">
                     <span className="text-white/70">Public Membership</span>
-                    <span className="text-white font-medium">{formData.publicMembership ? 'Yes' : 'No'}</span>
+                    <span className="text-white font-medium">
+                      {formData.publicMembership ? "Yes" : "No"}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -449,8 +515,9 @@ export default function OnboardingPage() {
                 Create DAO
               </h1>
               <p className="text-xl text-gray-200 mb-8 max-w-2xl mx-auto">
-                Establish your decentralized autonomous organization in the ArcheDAO ecosystem. 
-                Configure governance rules, voting parameters, and community settings.
+                Establish your decentralized autonomous organization in the
+                ArcheDAO ecosystem. Configure governance rules, voting
+                parameters, and community settings.
               </p>
               {!connected && (
                 <div className="flex justify-center mb-8">
@@ -464,7 +531,9 @@ export default function OnboardingPage() {
               <Card className="max-w-2xl mx-auto bg-white/10 backdrop-blur-md border-white/20">
                 <CardContent className="flex flex-col items-center justify-center p-12 gap-4">
                   <AlertCircle className="h-12 w-12 text-amber-500" />
-                  <h2 className="text-xl font-medium text-white">Connect Your Wallet</h2>
+                  <h2 className="text-xl font-medium text-white">
+                    Connect Your Wallet
+                  </h2>
                   <p className="text-center text-white/70">
                     Please connect your wallet to create a DAO
                   </p>
@@ -480,17 +549,21 @@ export default function OnboardingPage() {
                   <div className="flex items-center space-x-4">
                     {steps.map((step, index) => (
                       <div key={index} className="flex items-center">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-200 ${
-                          index <= currentStep 
-                            ? 'bg-red-600 border-red-600 text-white' 
-                            : 'border-white/20 text-white/50'
-                        }`}>
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-200 ${
+                            index <= currentStep
+                              ? "bg-red-600 border-red-600 text-white"
+                              : "border-white/20 text-white/50"
+                          }`}
+                        >
                           {index + 1}
                         </div>
                         {index < steps.length - 1 && (
-                          <div className={`w-16 h-0.5 mx-2 transition-all duration-200 ${
-                            index < currentStep ? 'bg-red-600' : 'bg-white/20'
-                          }`} />
+                          <div
+                            className={`w-16 h-0.5 mx-2 transition-all duration-200 ${
+                              index < currentStep ? "bg-red-600" : "bg-white/20"
+                            }`}
+                          />
                         )}
                       </div>
                     ))}
@@ -516,19 +589,25 @@ export default function OnboardingPage() {
                         <Button
                           type="button"
                           variant="outline"
-                          onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+                          onClick={() =>
+                            setCurrentStep(Math.max(0, currentStep - 1))
+                          }
                           disabled={currentStep === 0}
                           className="bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20 disabled:opacity-50"
                         >
                           Previous
                         </Button>
-                        
+
                         <Button
                           type="submit"
                           disabled={!isStepValid() || isLoading}
                           className="bg-red-600 hover:bg-red-700 text-white font-semibold px-8 py-3 rounded-lg shadow-lg hover:shadow-red-500/25 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:transform-none"
                         >
-                          {isLoading ? 'Processing...' : (currentStep === steps.length - 1 ? 'Create DAO' : 'Next')}
+                          {isLoading
+                            ? "Processing..."
+                            : currentStep === steps.length - 1
+                            ? "Create DAO"
+                            : "Next"}
                         </Button>
                       </div>
                     </form>
@@ -550,7 +629,7 @@ export default function OnboardingPage() {
           cursor: pointer;
           box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
-        
+
         .slider-thumb::-moz-range-thumb {
           width: 20px;
           height: 20px;

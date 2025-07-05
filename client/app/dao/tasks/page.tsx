@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,129 +18,76 @@ import {
   Eye,
   Edit,
   Trash2,
+  Loader2,
+  ArrowRight,
 } from "lucide-react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
-
-// Mock tasks data
-const tasks = [
-  {
-    id: "TASK-101",
-    title: "Update Documentation",
-    description:
-      "Update the DAO governance documentation with latest changes and procedures.",
-    status: "in-progress",
-    priority: "high",
-    assignee: "0x8e46...74ac",
-    reward: "500 APT",
-    deadline: "2024-03-20",
-    createdAt: "2024-03-15",
-    category: "Documentation",
-    estimatedHours: 8,
-  },
-  {
-    id: "TASK-102",
-    title: "Community Event Planning",
-    description: "Plan and organize the quarterly community meetup event.",
-    status: "open",
-    priority: "medium",
-    assignee: null,
-    reward: "1000 APT",
-    deadline: "2024-03-25",
-    createdAt: "2024-03-14",
-    category: "Community",
-    estimatedHours: 20,
-  },
-  {
-    id: "TASK-103",
-    title: "Smart Contract Audit",
-    description:
-      "Conduct security audit of the new treasury management smart contract.",
-    status: "completed",
-    priority: "high",
-    assignee: "0x7d32...91bc",
-    reward: "2000 APT",
-    deadline: "2024-03-18",
-    createdAt: "2024-03-10",
-    category: "Technical",
-    estimatedHours: 40,
-  },
-  {
-    id: "TASK-104",
-    title: "Design New Logo",
-    description:
-      "Create a new logo design for the DAO brand refresh initiative.",
-    status: "review",
-    priority: "low",
-    assignee: "0x9f23...45de",
-    reward: "750 APT",
-    deadline: "2024-03-22",
-    createdAt: "2024-03-12",
-    category: "Design",
-    estimatedHours: 15,
-  },
-];
+import { useTaskManager, type TaskInfo } from "@/hooks/useTaskManager";
+import {
+  TASK_STATUS,
+  getTaskStatusLabel,
+  getTaskStatusColor,
+} from "@/config/contract";
 
 export default function TasksPage() {
   const { account, connected } = useWallet();
   const router = useRouter();
+  const {
+    getDAOTasks,
+    getUserCreatedTasks,
+    assignTask,
+    loading,
+    formatAPTAmount,
+    formatDeadline,
+    isTaskExpired,
+  } = useTaskManager();
   const [filter, setFilter] = useState("all");
+  const [tasks, setTasks] = useState<TaskInfo[]>([]);
+  const [daoId] = useState(1); // Default DAO ID - this should be dynamic in a real app
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "open":
-        return "bg-blue-500/10 text-blue-500";
-      case "in-progress":
-        return "bg-yellow-500/10 text-yellow-500";
-      case "review":
-        return "bg-purple-500/10 text-purple-500";
-      case "completed":
-        return "bg-green-500/10 text-green-500";
-      default:
-        return "bg-gray-500/10 text-gray-500";
+  // Fetch tasks when component mounts or when account changes
+  useEffect(() => {
+    const fetchTasks = async () => {
+      if (connected && account) {
+        try {
+          const daoTasks = await getDAOTasks(daoId);
+          setTasks(daoTasks);
+        } catch (error) {
+          console.error("Error fetching tasks:", error);
+          toast({
+            title: "Error Loading Tasks",
+            description: "Failed to load tasks from the blockchain.",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+
+    fetchTasks();
+  }, [connected, account?.address, daoId, getDAOTasks]);
+
+  const handleAssignTask = async (taskId: number) => {
+    try {
+      await assignTask(taskId);
+      // Refresh tasks after assignment
+      const daoTasks = await getDAOTasks(daoId);
+      setTasks(daoTasks);
+    } catch (error) {
+      console.error("Error assigning task:", error);
+      // Error handling is done in the useTaskManager hook
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority.toLowerCase()) {
-      case "high":
-        return "bg-red-500/10 text-red-500";
-      case "medium":
-        return "bg-yellow-500/10 text-yellow-500";
-      case "low":
-        return "bg-green-500/10 text-green-500";
-      default:
-        return "bg-gray-500/10 text-gray-500";
-    }
-  };
-
-  const getCategoryColor = (category: string) => {
-    switch (category.toLowerCase()) {
-      case "technical":
-        return "bg-purple-500/10 text-purple-500";
-      case "community":
-        return "bg-blue-500/10 text-blue-500";
-      case "documentation":
-        return "bg-green-500/10 text-green-500";
-      case "design":
-        return "bg-pink-500/10 text-pink-500";
-      default:
-        return "bg-gray-500/10 text-gray-500";
-    }
-  };
-
-  const handleAssignTask = (taskId: string) => {
-    toast({
-      title: "Task Assigned",
-      description: `You have been assigned to task ${taskId}`,
-    });
-  };
-
-  const filteredTasks = tasks.filter((task) => {
+  const filteredTasks = (tasks || []).filter((task) => {
     if (filter === "all") return true;
     if (filter === "my-tasks") return task.assignee === account?.address;
-    return task.status === filter;
+    // Convert status number to string for comparison
+    const statusLabel = getTaskStatusLabel(task.state)
+      .toLowerCase()
+      .replace(" ", "-");
+    return statusLabel === filter;
   });
 
   if (!connected) {
@@ -226,7 +173,11 @@ export default function TasksPage() {
                   <div>
                     <p className="text-sm text-gray-400">Open Tasks</p>
                     <p className="text-2xl font-bold text-white">
-                      {tasks.filter((t) => t.status === "open").length}
+                      {
+                        (tasks || []).filter(
+                          (t) => t.state === TASK_STATUS.OPEN
+                        ).length
+                      }
                     </p>
                   </div>
                 </div>
@@ -240,9 +191,13 @@ export default function TasksPage() {
                     <Clock className="w-6 h-6 text-yellow-400" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-400">In Progress</p>
+                    <p className="text-sm text-gray-400">Assigned</p>
                     <p className="text-2xl font-bold text-white">
-                      {tasks.filter((t) => t.status === "in-progress").length}
+                      {
+                        (tasks || []).filter(
+                          (t) => t.state === TASK_STATUS.ASSIGNED
+                        ).length
+                      }
                     </p>
                   </div>
                 </div>
@@ -258,7 +213,11 @@ export default function TasksPage() {
                   <div>
                     <p className="text-sm text-gray-400">Completed</p>
                     <p className="text-2xl font-bold text-white">
-                      {tasks.filter((t) => t.status === "completed").length}
+                      {
+                        (tasks || []).filter(
+                          (t) => t.state === TASK_STATUS.COMPLETED
+                        ).length
+                      }
                     </p>
                   </div>
                 </div>
@@ -275,8 +234,9 @@ export default function TasksPage() {
                     <p className="text-sm text-gray-400">My Tasks</p>
                     <p className="text-2xl font-bold text-white">
                       {
-                        tasks.filter((t) => t.assignee === account?.address)
-                          .length
+                        (tasks || []).filter(
+                          (t) => t.assignee === account?.address
+                        ).length
                       }
                     </p>
                   </div>
@@ -292,8 +252,8 @@ export default function TasksPage() {
             {[
               "all",
               "open",
-              "in-progress",
-              "review",
+              "assigned",
+              "submitted",
               "completed",
               "my-tasks",
             ].map((status) => (
@@ -321,77 +281,109 @@ export default function TasksPage() {
           {filteredTasks.map((task, index) => (
             <InViewMotion key={task.id}>
               <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="text-gray-400 text-sm">{task.id}</span>
-                        <Badge className={getCategoryColor(task.category)}>
-                          {task.category}
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm text-gray-400">
+                          TASK-{task.id}
+                        </span>
+                        <Badge className={getTaskStatusColor(task.state)}>
+                          {getTaskStatusLabel(task.state)}
                         </Badge>
-                        <Badge className={getStatusColor(task.status)}>
-                          {task.status.replace("-", " ")}
-                        </Badge>
-                        <Badge className={getPriorityColor(task.priority)}>
-                          {task.priority} priority
-                        </Badge>
+                        {isTaskExpired(task.deadline) && (
+                          <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                            Expired
+                          </Badge>
+                        )}
                       </div>
-                      <h3 className="text-xl font-bold text-white mb-2">
+                      <CardTitle className="text-xl text-white">
                         {task.title}
-                      </h3>
-                      <p className="text-gray-300 mb-4">{task.description}</p>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-400">
-                        <div className="flex items-center gap-1">
-                          <User className="w-4 h-4" />
-                          <span>
-                            {task.assignee ? task.assignee : "Unassigned"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
-                          <span>Due {task.deadline}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          <span>{task.estimatedHours}h estimated</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Target className="w-4 h-4" />
-                          <span>{task.reward} reward</span>
-                        </div>
-                      </div>
+                      </CardTitle>
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => router.push(`/dao/tasks/${task.id}`)}
-                        variant="outline"
-                        size="sm"
-                        className="border-red-900/20 text-white hover:bg-red-900/20"
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        View
-                      </Button>
-                      {task.status === "open" && !task.assignee && (
-                        <Button
-                          onClick={() => handleAssignTask(task.id)}
-                          className="bg-green-600 hover:bg-green-700"
-                          size="sm"
-                        >
-                          Assign to Me
-                        </Button>
-                      )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => router.push(`/dao/tasks/${task.id}`)}
+                      className="text-white hover:bg-white/10"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-gray-300 line-clamp-3 mb-4">
+                    {task.description}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {task.required_skills.map((skill, index) => (
+                      <Badge key={index} className="bg-red-900/30 text-red-200">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-400">
+                    <div className="flex items-center gap-1">
+                      <User className="w-4 h-4" />
+                      <span>
+                        {task.assignee
+                          ? `${task.assignee.slice(
+                              0,
+                              6
+                            )}...${task.assignee.slice(-4)}`
+                          : "Unassigned"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-4 h-4" />
+                      <span>Due {formatDeadline(task.deadline)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <User className="w-4 h-4" />
+                      <span>
+                        Creator: {task.creator.slice(0, 6)}...
+                        {task.creator.slice(-4)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Target className="w-4 h-4" />
+                      <span>{formatAPTAmount(task.bounty_amount)} APT</span>
                     </div>
                   </div>
 
-                  {/* Progress bar for in-progress tasks */}
-                  {task.status === "in-progress" && (
-                    <div className="mt-4">
-                      <div className="flex justify-between text-sm text-gray-300 mb-2">
-                        <span>Progress</span>
-                        <span>65%</span>
-                      </div>
-                      <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-red-900 to-red-700 w-[65%]" />
+                  {task.state === TASK_STATUS.SUBMITTED && (
+                    <div className="mt-4 border-t border-white/10 pt-4">
+                      <h4 className="text-sm font-medium text-white mb-2">
+                        Validation Status
+                      </h4>
+                      <div className="space-y-2">
+                        {task.validators.map((validator, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-2 text-sm text-gray-300"
+                          >
+                            <User className="w-4 h-4" />
+                            <span>
+                              {validator.slice(0, 6)}...{validator.slice(-4)}
+                            </span>
+                            {task.validation_results[validator] !==
+                              undefined && (
+                              <Badge
+                                className={
+                                  task.validation_results[validator]
+                                    ? "bg-green-900/30 text-green-200"
+                                    : "bg-red-900/30 text-red-200"
+                                }
+                              >
+                                {task.validation_results[validator]
+                                  ? "Approved"
+                                  : "Rejected"}
+                              </Badge>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
