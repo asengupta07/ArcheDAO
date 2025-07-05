@@ -1,13 +1,26 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import InViewMotion from '@/components/InViewMotion';
-import { Aurora } from '@/components/aurora';
+import { useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import InViewMotion from "@/components/InViewMotion";
+import { Aurora } from "@/components/aurora";
 import {
   Activity,
   Users,
@@ -32,33 +45,53 @@ import {
   Copy,
   Check,
   UserPlus,
-  X
-} from 'lucide-react';
+  X,
+} from "lucide-react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { toast } from '@/hooks/use-toast';
+import { toast } from "@/hooks/use-toast";
 
 // Hardcoded member data
 const daoMembers = [
-  { address: '0x8e46...74ac', role: 'Governor', joinedDate: '2024-01-15', votingPower: '15%' },
-  { address: '0x7d32...91bc', role: 'Governor', joinedDate: '2024-01-16', votingPower: '12%' },
-  { address: '0x9f23...45de', role: 'Member', joinedDate: '2024-02-01', votingPower: '5%' },
-  { address: '0x2a1b...67cd', role: 'Member', joinedDate: '2024-02-15', votingPower: '3%' },
+  {
+    address: "0x8e46...74ac",
+    role: "Governor",
+    joinedDate: "2024-01-15",
+    votingPower: "15%",
+  },
+  {
+    address: "0x7d32...91bc",
+    role: "Governor",
+    joinedDate: "2024-01-16",
+    votingPower: "12%",
+  },
+  {
+    address: "0x9f23...45de",
+    role: "Member",
+    joinedDate: "2024-02-01",
+    votingPower: "5%",
+  },
+  {
+    address: "0x2a1b...67cd",
+    role: "Member",
+    joinedDate: "2024-02-15",
+    votingPower: "3%",
+  },
 ];
 
 // Hardcoded DAO data (simulating smart contract data)
 const daoContract = {
-  daoId: 'dao_123',
-  daoAddress: '0x8e46...74ac',
-  name: 'TechDAO',
-  role: 'Governor',
+  daoId: "dao_123",
+  daoAddress: "0x8e46...74ac",
+  name: "TechDAO",
+  role: "Governor",
   overview: {
     totalMembers: 1250,
-    treasuryBalance: '125,000 APT',
-    marketValue: '$1,875,000',
-    treasuryChange: '+12.5%',
+    treasuryBalance: "125,000 APT",
+    marketValue: "$1,875,000",
+    treasuryChange: "+12.5%",
     activeProposals: 3,
     totalProposals: 28,
-    successRate: '85%',
+    successRate: "85%",
   },
   votingPower: {
     community: 60,
@@ -67,56 +100,56 @@ const daoContract = {
   },
   recentProposals: [
     {
-      id: 'PROP-31',
-      title: 'Implement Layer 2 Scaling',
-      status: 'active',
+      id: "PROP-31",
+      title: "Implement Layer 2 Scaling",
+      status: "active",
       votes: { yes: 75, no: 25 },
-      timeLeft: '2 days',
+      timeLeft: "2 days",
       quorum: 80,
-      yourVote: 'yes',
+      yourVote: "yes",
     },
     {
-      id: 'PROP-30',
-      title: 'Treasury Diversification',
-      status: 'pending',
+      id: "PROP-30",
+      title: "Treasury Diversification",
+      status: "pending",
       votes: { yes: 45, no: 55 },
-      timeLeft: '5 days',
+      timeLeft: "5 days",
       quorum: 60,
       yourVote: null,
     },
     {
-      id: 'PROP-29',
-      title: 'Community Rewards Program',
-      status: 'completed',
+      id: "PROP-29",
+      title: "Community Rewards Program",
+      status: "completed",
       votes: { yes: 90, no: 10 },
-      timeLeft: '0 days',
+      timeLeft: "0 days",
       quorum: 100,
-      yourVote: 'yes',
-    }
+      yourVote: "yes",
+    },
   ],
   governanceMetrics: {
-    proposalSuccessRate: '85%',
-    averageQuorum: '75%',
-    averageVotingPeriod: '5 days',
-    governorParticipation: '92%',
+    proposalSuccessRate: "85%",
+    averageQuorum: "75%",
+    averageVotingPeriod: "5 days",
+    governorParticipation: "92%",
   },
   treasuryActivity: [
-    { type: 'Inflow', amount: '+5,000 APT', date: '2024-03-15' },
-    { type: 'Outflow', amount: '-2,000 APT', date: '2024-03-14' },
-    { type: 'Inflow', amount: '+8,000 APT', date: '2024-03-13' },
+    { type: "Inflow", amount: "+5,000 APT", date: "2024-03-15" },
+    { type: "Outflow", amount: "-2,000 APT", date: "2024-03-14" },
+    { type: "Inflow", amount: "+8,000 APT", date: "2024-03-13" },
   ],
 };
 
 export default function GovernancePage() {
   const { account, connected } = useWallet();
-  const [inviteLink, setInviteLink] = useState('');
+  const [inviteLink, setInviteLink] = useState("");
   const [showCopied, setShowCopied] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState(null);
 
   const generateInviteLink = () => {
     // In real implementation, this would call the smart contract to generate a unique code
     const uniqueCode = Math.random().toString(36).substring(2, 15);
-    const newLink = `${window.location.origin}/join/${daoContract.daoId}/${uniqueCode}`;
+    const newLink = `${window.location.origin}/invite?code=${uniqueCode}`;
     setInviteLink(newLink);
     toast({
       title: "Invite Link Generated",
@@ -134,7 +167,7 @@ export default function GovernancePage() {
     });
   };
 
-  const handleVote = (proposalId: string, vote: 'yes' | 'no') => {
+  const handleVote = (proposalId: string, vote: "yes" | "no") => {
     toast({
       title: "Vote Submitted",
       description: `You voted ${vote} on proposal ${proposalId}`,
@@ -143,14 +176,14 @@ export default function GovernancePage() {
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'active':
-        return 'bg-green-500/10 text-green-500';
-      case 'pending':
-        return 'bg-yellow-500/10 text-yellow-500';
-      case 'completed':
-        return 'bg-blue-500/10 text-blue-500';
+      case "active":
+        return "bg-green-500/10 text-green-500";
+      case "pending":
+        return "bg-yellow-500/10 text-yellow-500";
+      case "completed":
+        return "bg-blue-500/10 text-blue-500";
       default:
-        return 'bg-gray-500/10 text-gray-500';
+        return "bg-gray-500/10 text-gray-500";
     }
   };
 
@@ -158,8 +191,8 @@ export default function GovernancePage() {
     return (
       <div className="min-h-screen relative">
         <div className="fixed inset-0 z-0">
-          <Aurora 
-            colorStops={["#8B0000", "#660000", "#8B0000"]} 
+          <Aurora
+            colorStops={["#8B0000", "#660000", "#8B0000"]}
             amplitude={1.2}
             speed={0.3}
             blend={0.8}
@@ -168,7 +201,9 @@ export default function GovernancePage() {
         <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
           <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
             <CardHeader>
-              <CardTitle className="text-2xl text-white mb-4">Access Restricted</CardTitle>
+              <CardTitle className="text-2xl text-white mb-4">
+                Access Restricted
+              </CardTitle>
               <CardDescription className="text-gray-300">
                 Please connect your wallet to access the governor dashboard.
               </CardDescription>
@@ -187,20 +222,15 @@ export default function GovernancePage() {
   return (
     <div className="min-h-screen relative">
       <div className="fixed inset-0 z-0">
-        <Aurora 
-          colorStops={["#8B0000", "#660000", "#8B0000"]} 
+        <Aurora
+          colorStops={["#8B0000", "#660000", "#8B0000"]}
           amplitude={1.2}
           speed={0.3}
           blend={0.8}
         />
       </div>
 
-    
-      
-
       <div className="relative z-10 container mx-auto px-4 py-[8rem] mt-6">
-        
-        
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {/* Key Metrics - Row 1 */}
           <InViewMotion>
@@ -212,7 +242,9 @@ export default function GovernancePage() {
                   </div>
                   <div>
                     <p className="text-sm text-gray-400">Total Members</p>
-                    <p className="text-2xl font-bold text-white">{daoContract.overview.totalMembers}</p>
+                    <p className="text-2xl font-bold text-white">
+                      {daoContract.overview.totalMembers}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -228,8 +260,12 @@ export default function GovernancePage() {
                   </div>
                   <div>
                     <p className="text-sm text-gray-400">Treasury Balance</p>
-                    <p className="text-2xl font-bold text-white">{daoContract.overview.treasuryBalance}</p>
-                    <p className="text-sm text-green-500">{daoContract.overview.treasuryChange}</p>
+                    <p className="text-2xl font-bold text-white">
+                      {daoContract.overview.treasuryBalance}
+                    </p>
+                    <p className="text-sm text-green-500">
+                      {daoContract.overview.treasuryChange}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -245,7 +281,9 @@ export default function GovernancePage() {
                   </div>
                   <div>
                     <p className="text-sm text-gray-400">Your Voting Power</p>
-                    <p className="text-2xl font-bold text-white">{daoContract.votingPower.yourVotingPower}%</p>
+                    <p className="text-2xl font-bold text-white">
+                      {daoContract.votingPower.yourVotingPower}%
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -260,8 +298,12 @@ export default function GovernancePage() {
                     <Target className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-400">Proposal Success Rate</p>
-                    <p className="text-2xl font-bold text-white">{daoContract.governanceMetrics.proposalSuccessRate}</p>
+                    <p className="text-sm text-gray-400">
+                      Proposal Success Rate
+                    </p>
+                    <p className="text-2xl font-bold text-white">
+                      {daoContract.governanceMetrics.proposalSuccessRate}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -272,7 +314,9 @@ export default function GovernancePage() {
           <InViewMotion>
             <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl md:col-span-2">
               <CardHeader>
-                <CardTitle className="text-xl text-white">Voting Power Distribution</CardTitle>
+                <CardTitle className="text-xl text-white">
+                  Voting Power Distribution
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -284,7 +328,9 @@ export default function GovernancePage() {
                     <div className="h-2 bg-white/10 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-red-900 to-red-700"
-                        style={{ width: `${daoContract.votingPower.community}%` }}
+                        style={{
+                          width: `${daoContract.votingPower.community}%`,
+                        }}
                       />
                     </div>
                   </div>
@@ -296,7 +342,9 @@ export default function GovernancePage() {
                     <div className="h-2 bg-white/10 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-red-700 to-red-500"
-                        style={{ width: `${daoContract.votingPower.governors}%` }}
+                        style={{
+                          width: `${daoContract.votingPower.governors}%`,
+                        }}
                       />
                     </div>
                   </div>
@@ -309,14 +357,19 @@ export default function GovernancePage() {
           <InViewMotion>
             <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl md:col-span-2">
               <CardHeader>
-                <CardTitle className="text-xl text-white">Recent Treasury Activity</CardTitle>
+                <CardTitle className="text-xl text-white">
+                  Recent Treasury Activity
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {daoContract.treasuryActivity.map((activity, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-white/5 rounded-lg"
+                    >
                       <div className="flex items-center gap-3">
-                        {activity.type === 'Inflow' ? (
+                        {activity.type === "Inflow" ? (
                           <ArrowUpRight className="w-5 h-5 text-green-500" />
                         ) : (
                           <ArrowDownRight className="w-5 h-5 text-red-500" />
@@ -324,7 +377,13 @@ export default function GovernancePage() {
                         <span className="text-white">{activity.type}</span>
                       </div>
                       <div className="text-right">
-                        <p className={activity.type === 'Inflow' ? 'text-green-500' : 'text-red-500'}>
+                        <p
+                          className={
+                            activity.type === "Inflow"
+                              ? "text-green-500"
+                              : "text-red-500"
+                          }
+                        >
                           {activity.amount}
                         </p>
                         <p className="text-sm text-gray-400">{activity.date}</p>
@@ -343,7 +402,7 @@ export default function GovernancePage() {
                 <CardTitle className="text-xl text-white">Members</CardTitle>
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button 
+                    <Button
                       className="bg-gradient-to-r from-red-900 to-red-700"
                       onClick={generateInviteLink}
                     >
@@ -356,21 +415,29 @@ export default function GovernancePage() {
                       <DialogTitle>Invite New Member</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 p-4">
-                      <p className="text-gray-400">Share this link to invite a new member:</p>
+                      <p className="text-gray-400">
+                        Share this link to invite a new member:
+                      </p>
                       <div className="flex gap-2">
-                        <Input 
-                          value={inviteLink} 
-                          readOnly 
+                        <Input
+                          value={inviteLink}
+                          readOnly
                           className="bg-white/5 border-red-900/20 text-white"
                         />
                         <Button
                           onClick={copyToClipboard}
                           className="bg-gradient-to-r from-red-900 to-red-700"
                         >
-                          {showCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                          {showCopied ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
                         </Button>
                       </div>
-                      <p className="text-sm text-gray-500">Link expires in 24 hours</p>
+                      <p className="text-sm text-gray-500">
+                        Link expires in 24 hours
+                      </p>
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -378,16 +445,31 @@ export default function GovernancePage() {
               <CardContent>
                 <div className="space-y-4">
                   {daoMembers.map((member, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-white/5 rounded-lg"
+                    >
                       <div className="flex items-center gap-3">
-                        <Badge className={member.role === 'Governor' ? 'bg-red-900/50' : 'bg-gray-800/50'}>
+                        <Badge
+                          className={
+                            member.role === "Governor"
+                              ? "bg-red-900/50"
+                              : "bg-gray-800/50"
+                          }
+                        >
                           {member.role}
                         </Badge>
-                        <span className="text-white font-mono">{member.address}</span>
+                        <span className="text-white font-mono">
+                          {member.address}
+                        </span>
                       </div>
                       <div className="text-right">
-                        <p className="text-gray-400 text-sm">Joined: {member.joinedDate}</p>
-                        <p className="text-white">{member.votingPower} voting power</p>
+                        <p className="text-gray-400 text-sm">
+                          Joined: {member.joinedDate}
+                        </p>
+                        <p className="text-white">
+                          {member.votingPower} voting power
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -400,7 +482,9 @@ export default function GovernancePage() {
           <InViewMotion>
             <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl md:col-span-4">
               <CardHeader>
-                <CardTitle className="text-xl text-white">Active Proposals</CardTitle>
+                <CardTitle className="text-xl text-white">
+                  Active Proposals
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -410,7 +494,9 @@ export default function GovernancePage() {
                         <div>
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-gray-400">{proposal.id}</span>
-                            <h4 className="text-white font-medium">{proposal.title}</h4>
+                            <h4 className="text-white font-medium">
+                              {proposal.title}
+                            </h4>
                           </div>
                           <div className="flex items-center gap-3">
                             <Badge className={getStatusColor(proposal.status)}>
@@ -422,17 +508,17 @@ export default function GovernancePage() {
                             </div>
                           </div>
                         </div>
-                        {proposal.status === 'active' && !proposal.yourVote && (
+                        {proposal.status === "active" && !proposal.yourVote && (
                           <div className="flex gap-2">
                             <Button
-                              onClick={() => handleVote(proposal.id, 'yes')}
+                              onClick={() => handleVote(proposal.id, "yes")}
                               className="bg-green-600 hover:bg-green-700"
                               size="sm"
                             >
                               Vote Yes
                             </Button>
                             <Button
-                              onClick={() => handleVote(proposal.id, 'no')}
+                              onClick={() => handleVote(proposal.id, "no")}
                               className="bg-red-600 hover:bg-red-700"
                               size="sm"
                             >
@@ -462,8 +548,12 @@ export default function GovernancePage() {
                           />
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-green-500">{proposal.votes.yes}% Yes</span>
-                          <span className="text-red-500">{proposal.votes.no}% No</span>
+                          <span className="text-green-500">
+                            {proposal.votes.yes}% Yes
+                          </span>
+                          <span className="text-red-500">
+                            {proposal.votes.no}% No
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -477,16 +567,22 @@ export default function GovernancePage() {
           <InViewMotion>
             <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl md:col-span-4">
               <CardHeader>
-                <CardTitle className="text-xl text-white">Governance Metrics</CardTitle>
+                <CardTitle className="text-xl text-white">
+                  Governance Metrics
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  {Object.entries(daoContract.governanceMetrics).map(([key, value], index) => (
-                    <div key={index} className="p-4 bg-white/5 rounded-lg">
-                      <p className="text-gray-400 mb-2">{key.split(/(?=[A-Z])/).join(' ')}</p>
-                      <p className="text-2xl font-bold text-white">{value}</p>
-                    </div>
-                  ))}
+                  {Object.entries(daoContract.governanceMetrics).map(
+                    ([key, value], index) => (
+                      <div key={index} className="p-4 bg-white/5 rounded-lg">
+                        <p className="text-gray-400 mb-2">
+                          {key.split(/(?=[A-Z])/).join(" ")}
+                        </p>
+                        <p className="text-2xl font-bold text-white">{value}</p>
+                      </div>
+                    )
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -495,4 +591,4 @@ export default function GovernancePage() {
       </div>
     </div>
   );
-} 
+}
