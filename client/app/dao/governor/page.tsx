@@ -174,6 +174,7 @@ export default function GovernancePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [proposals, setProposals] = useState<ProposalData[]>([]);
   const [tasks, setTasks] = useState<TaskData[]>([]);
+  const [autoJoining, setAutoJoining] = useState(false);
 
   // Utility function to safely access selectedDAO properties
   const safeDAOProperty = (property: keyof DAOInfo, fallback: any = null) => {
@@ -197,6 +198,101 @@ export default function GovernancePage() {
     }
   }, [connected, account, aptosClient]);
 
+  const checkAndAutoJoinDAO = async () => {
+    if (!account || !aptosClient) return false;
+
+    try {
+      // Check if user already has a profile
+      try {
+        await aptosClient.getAccountResource({
+          accountAddress: account.address,
+          resourceType: RESOURCE_TYPES.USER_PROFILE,
+        });
+        return false; // Profile exists, no need to auto-join
+      } catch (error) {
+        // Profile doesn't exist, check if user is a governor in any DAO
+        console.log("No profile found, checking if user is a governor in any DAO...");
+      }
+
+      // Get all DAOs and check if user is a governor in any of them
+      try {
+        const registryResource = await aptosClient.getAccountResource({
+          accountAddress: CONTRACT_CONFIG.MODULE_ADDRESS,
+          resourceType: RESOURCE_TYPES.DAO_REGISTRY,
+        });
+        
+        // For now, we'll try to get DAO info for common DAO IDs
+        // In a real implementation, you'd iterate through all DAOs
+        for (let daoId = 1; daoId <= 10; daoId++) {
+          try {
+            const daoData = await aptosClient.view({
+              payload: {
+                function: CONTRACT_FUNCTIONS.GET_DAO_INFO,
+                functionArguments: [daoId.toString()],
+              },
+            });
+            
+            if (daoData && daoData[0]) {
+              const dao = daoData[0] as DAOInfo;
+              // Check if user is a governor or creator of this DAO
+              if (dao.governors.includes(account.address.toString()) || 
+                  dao.creator === account.address.toString()) {
+                // User is a governor, auto-join this DAO
+                setAutoJoining(true);
+                toast({
+                  title: "Auto-joining DAO",
+                  description: `You are a governor of ${dao.name}. Auto-joining to create your profile...`,
+                });
+                
+                try {
+                  const response = await signAndSubmitTransaction({
+                    sender: account.address,
+                    data: {
+                      function: CONTRACT_FUNCTIONS.JOIN_DAO_BY_ID,
+                      functionArguments: [daoId.toString()],
+                    },
+                  });
+
+                  await aptosClient.waitForTransaction({ 
+                    transactionHash: response.hash 
+                  });
+
+                  toast({
+                    title: "Successfully Joined DAO",
+                    description: `You have been automatically added to ${dao.name} as a governor.`,
+                  });
+                  
+                  setAutoJoining(false);
+                  return true; // Successfully joined
+                } catch (joinError) {
+                  console.error("Error auto-joining DAO:", joinError);
+                  toast({
+                    title: "Auto-join Failed",
+                    description: "Failed to automatically join the DAO. Please try joining manually.",
+                    variant: "destructive",
+                  });
+                  setAutoJoining(false);
+                  return false;
+                }
+              }
+            }
+          } catch (daoError) {
+            // DAO doesn't exist or error fetching, continue to next
+            continue;
+          }
+        }
+      } catch (registryError) {
+        console.error("Error checking DAO registry:", registryError);
+      }
+      
+      return false; // No governor role found
+    } catch (error) {
+      console.error("Error in checkAndAutoJoinDAO:", error);
+      setAutoJoining(false);
+      return false;
+    }
+  };
+
   const loadUserData = async () => {
     if (!account || !aptosClient) return;
 
@@ -211,14 +307,24 @@ export default function GovernancePage() {
         });
         setUserProfile(profileResource.data as UserProfile);
       } catch (error) {
-        console.log("User profile not found, user might not be registered");
-        toast({
-          title: "User Not Registered",
-          description: "You need to join a DAO first to access this dashboard.",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
+        console.log("User profile not found, checking if user is a governor...");
+        
+        // Check if user is a governor and auto-join if needed
+        const autoJoined = await checkAndAutoJoinDAO();
+        
+        if (autoJoined) {
+          // Retry loading user data after auto-joining
+          setTimeout(() => loadUserData(), 2000);
+          return;
+        } else {
+          toast({
+            title: "User Not Registered",
+            description: "You need to join a DAO first to access this dashboard.",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
       }
 
       // Get user's complete DAO ecosystem
@@ -456,7 +562,7 @@ export default function GovernancePage() {
     );
   }
 
-  if (loading) {
+  if (loading || autoJoining) {
     return (
       <div className="min-h-screen relative">
         <div className="fixed inset-0 z-0">
@@ -472,8 +578,15 @@ export default function GovernancePage() {
             <CardContent className="p-8">
               <div className="flex items-center justify-center space-x-4">
                 <div className="animate-spin h-8 w-8 border-4 border-red-500/30 border-t-red-500 rounded-full"></div>
-                <span className="text-white text-lg">Loading DAO data...</span>
+                <span className="text-white text-lg">
+                  {autoJoining ? "Auto-joining DAO..." : "Loading DAO data..."}
+                </span>
               </div>
+              {autoJoining && (
+                <p className="text-gray-300 text-sm mt-4">
+                  You are a governor of a DAO. Creating your profile...
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
