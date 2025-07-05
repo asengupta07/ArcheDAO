@@ -2,10 +2,10 @@
 
 # dependencies
 /node_modules
-/package-lock.json
-/yarn.lock
-/bun.lockb
-/pnpm-lock.yaml
+package-lock.json
+yarn.lock
+bun.lock
+pnpm-lock.yaml
 /.pnp
 .pnp.*
 .yarn/*
