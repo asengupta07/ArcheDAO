@@ -13,8 +13,9 @@ export const CONTRACT_CONFIG = {
 // User types from the smart contract
 export const USER_TYPES = {
   MEMBER: 0,
-  GOVERNOR: 1,
+  DELEGATE: 1,
   DAO_CREATOR: 2,
+  GOVERNOR: 3,
 } as const;
 
 // Proposal status from the smart contract
@@ -74,6 +75,8 @@ export const getUserTypeLabel = (userType: number): string => {
       return "DAO Creator";
     case USER_TYPES.GOVERNOR:
       return "Governor";
+    case USER_TYPES.DELEGATE:
+      return "Delegate";
     case USER_TYPES.MEMBER:
       return "Member";
     default:
@@ -87,6 +90,8 @@ export const getUserTypeColor = (userType: number): string => {
       return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
     case USER_TYPES.GOVERNOR:
       return "bg-red-500/20 text-red-400 border-red-500/30";
+    case USER_TYPES.DELEGATE:
+      return "bg-purple-500/20 text-purple-400 border-purple-500/30";
     case USER_TYPES.MEMBER:
       return "bg-blue-500/20 text-blue-400 border-blue-500/30";
     default:

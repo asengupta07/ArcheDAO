@@ -28,6 +28,7 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useRouter } from "next/navigation";
 import { Aptos, AptosConfig, Network as AptosNetwork } from "@aptos-labs/ts-sdk";
 import { 
+  CONTRACT_CONFIG,
   CONTRACT_FUNCTIONS, 
   RESOURCE_TYPES, 
   getUserTypeLabel, 
@@ -151,14 +152,49 @@ export default function DashboardPage() {
           },
         });
         
+        console.log("Ecosystem data received:", ecosystemData);
+        
         if (ecosystemData && ecosystemData[0]) {
-          setUserEcosystem(ecosystemData[0] as UserDAOEcosystem);
+          const ecosystem = ecosystemData[0] as UserDAOEcosystem;
+          console.log("Parsed ecosystem:", ecosystem);
+          console.log("Total DAOs joined:", ecosystem.total_daos_joined);
+          console.log("DAOs array:", ecosystem.daos);
+          setUserEcosystem(ecosystem);
+        } else {
+          console.log("No ecosystem data returned or empty data");
+          // Even if no DAOs joined, we should have an empty ecosystem
+          setUserEcosystem({
+            user_address: account.address.toString(),
+            total_daos_joined: 0,
+            total_voting_power: 0,
+            total_proposals_created: 0,
+            total_tasks_created: 0,
+            total_votes_cast: 0,
+            daos: [],
+            generated_at: Date.now() / 1000,
+          });
         }
       } catch (error) {
         console.error("Error loading user ecosystem:", error);
+        console.error("Error details:", error);
+        
+        // Try to get a simpler view to debug
+        try {
+          console.log("Attempting fallback - checking if user has any DAO memberships...");
+          const userDAOs = await aptosClient.view({
+            payload: {
+              function: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::get_daos_by_user`,
+              functionArguments: [account.address.toString()],
+            },
+          });
+          console.log("User DAOs (fallback):", userDAOs);
+        } catch (fallbackError) {
+          console.error("Fallback also failed:", fallbackError);
+        }
+        
         toast({
           title: "Error Loading DAO Data",
-          description: "Failed to load your DAO ecosystem data.",
+          description: "Failed to load your DAO ecosystem data. Check console for details.",
           variant: "destructive",
         });
       }
@@ -278,7 +314,10 @@ export default function DashboardPage() {
                 Welcome to ArcheDAO!
               </CardTitle>
               <p className="text-gray-300 mb-6">
-                You're not a member of any DAO yet. Use an invite code to join a DAO and get started.
+                {!userProfile 
+                  ? "You need to join a DAO first to create your profile."
+                  : "Loading your DAO data..."
+                }
               </p>
               <div className="flex gap-4 justify-center">
                 <Button 
@@ -301,6 +340,18 @@ export default function DashboardPage() {
                   Refresh
                 </Button>
               </div>
+              {userProfile && (
+                <div className="mt-4 p-3 bg-blue-500/10 rounded-lg">
+                  <p className="text-blue-300 text-sm">
+                    Profile found: {getUserTypeLabel(userProfile.user_type)} 
+                    (Type: {userProfile.user_type})
+                  </p>
+                  <p className="text-blue-300 text-xs mt-1">
+                    Voting Power: {userProfile.voting_power} | 
+                    Reputation: {userProfile.reputation_score}
+                  </p>
+                </div>
+              )}
             </CardHeader>
           </Card>
         </div>
@@ -463,8 +514,41 @@ export default function DashboardPage() {
               <CardTitle className="text-xl text-white">Your DAOs</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {userEcosystem.daos.map((daoEntry, index) => (
+              {userEcosystem.daos.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="p-6 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                    <p className="text-yellow-300 mb-4">
+                      You have a profile but no DAO memberships found.
+                    </p>
+                    <p className="text-yellow-200 text-sm mb-4">
+                      This could mean:
+                    </p>
+                    <ul className="text-yellow-200 text-sm list-disc list-inside text-left max-w-md mx-auto">
+                      <li>Your DAO membership hasn't been indexed yet</li>
+                      <li>There was an issue with the DAO joining process</li>
+                      <li>The ecosystem function isn't returning your DAOs</li>
+                    </ul>
+                    <div className="mt-6 flex gap-4 justify-center">
+                      <Button 
+                        onClick={() => router.push('/invite')}
+                        className="bg-gradient-to-r from-red-900 to-red-700"
+                      >
+                        Try Joining a DAO
+                      </Button>
+                      <Button 
+                        onClick={refreshData}
+                        disabled={refreshing}
+                        variant="outline"
+                        className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                      >
+                        Refresh Data
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {userEcosystem.daos.map((daoEntry, index) => (
                   <div key={index} className="bg-white/5 rounded-lg p-6 border border-white/10">
                     <div className="flex justify-between items-start mb-4">
                       <div>
@@ -542,7 +626,8 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))}
-              </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </InViewMotion>
