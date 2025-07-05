@@ -8,6 +8,8 @@ import { AutoConnectProvider } from "@/components/AutoConnectProvider";
 import { ReactQueryClientProvider } from "@/components/ReactQueryClientProvider";
 import { WalletSelector } from "@/components/WalletSelector";
 import Navbar from "@/components/FloatingNavbar";
+import { ProviderInitializer } from "@/components/ProviderInitializer";
+import { Toaster } from "@/components/ui/toaster";
 
 const fontSans = FontSans({
   subsets: ["latin"],
@@ -32,6 +34,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
         <AutoConnectProvider>
           <ReactQueryClientProvider>
             <WalletProvider>
+              <ProviderInitializer />
               <div className="fixed top-4 right-4 z-50">
                 <WalletSelector className="px-6 py-2 text-base font-semibold" />
               </div>
@@ -44,6 +47,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
                 // ]}
               />
               {children}
+              <Toaster />
             </WalletProvider>
           </ReactQueryClientProvider>
         </AutoConnectProvider>
