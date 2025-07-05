@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, RefObject } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface NavItem {
   label: string;
@@ -10,23 +10,44 @@ interface NavItem {
 interface FloatingNavbarProps {
   navItems?: NavItem[];
   className?: string;
+  activeTab?: string; // Control which tab is active
+  onTabChange?: (tab: string, index: number) => void; // Callback when tab changes
 }
 
 export default function FloatingNavbar({
   navItems = [
-    { label: "Home", link: "#" },
-    { label: "Wallet", link: "#wallet" },
-    { label: "Features", link: "#features" },
+    { label: "DAOs", link: "#" },
+    { label: "Portals", link: "#how-it-works" },
+    { label: "Community", link: "#features" },
     { label: "About", link: "#about" },
   ],
   className = "",
+  activeTab = "#", // Default to homepage
+  onTabChange,
 }: FloatingNavbarProps) {
+  // Split nav items into left and right groups
+  const leftItems = navItems.slice(0, 2);
+  const rightItems = navItems.slice(2, 4);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [activeSection, setActiveSection] = useState("#");
-  const [activeIndex, setActiveIndex] = useState(0);
+  
+  // Convert activeTab prop to activeIndex
+  const getActiveIndex = (tab: string): number => {
+    if (tab === "#") return 2; // ArcheDAO center
+    const itemIndex = navItems.findIndex(item => item.link === tab);
+    if (itemIndex === -1) return 2; // Default to center if not found
+    // Map navItems index to our 5-element layout: [0,1,center,2,3]
+    return itemIndex < 2 ? itemIndex : itemIndex + 1;
+  };
+  
+  const [activeSection, setActiveSection] = useState(activeTab);
+  const [activeIndex, setActiveIndex] = useState(getActiveIndex(activeTab));
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
   const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const centerRef = useRef<HTMLButtonElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Create a combined refs array: [left items, center, right items]
+  const allRefs = [...btnRefs.current.slice(0, 2), centerRef.current, ...btnRefs.current.slice(2, 4)];
 
   useEffect(() => {
     const handleScroll = () => {
@@ -36,7 +57,16 @@ export default function FloatingNavbar({
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Update internal state when activeTab prop changes
   useEffect(() => {
+    setActiveSection(activeTab);
+    setActiveIndex(getActiveIndex(activeTab));
+  }, [activeTab]);
+
+  useEffect(() => {
+    // Only set up intersection observer if onTabChange callback is provided
+    if (!onTabChange) return;
+    
     const observerOptions = {
       threshold: 0.6,
       rootMargin: "-20% 0% -20% 0%",
@@ -45,14 +75,14 @@ export default function FloatingNavbar({
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
           const id = entry.target.id;
-          if (id === "wallet" || id === "features" || id === "about") {
-            const section = `#${id}`;
-            setActiveSection(section);
-            const index = navItems.findIndex((item) => item.link === section);
-            if (index !== -1) setActiveIndex(index);
+          if (id === "how-it-works") {
+            onTabChange("#how-it-works", 1);
+          } else if (id === "features") {
+            onTabChange("#features", 3);
+          } else if (id === "get-started") {
+            onTabChange("#get-started", 4);
           } else {
-            setActiveSection("#");
-            setActiveIndex(0);
+            onTabChange("#", 2);
           }
         }
       });
@@ -62,13 +92,12 @@ export default function FloatingNavbar({
       observerOptions
     );
     const sections = document.querySelectorAll(
-      '[id="wallet"], [id="features"], [id="about"]'
+      '[id="how-it-works"], [id="features"], [id="get-started"]'
     );
     sections.forEach((section) => observer.observe(section));
     const checkTop = () => {
       if (window.scrollY < 100) {
-        setActiveSection("#");
-        setActiveIndex(0);
+        onTabChange("#", 2);
       }
     };
     window.addEventListener("scroll", checkTop);
@@ -77,47 +106,81 @@ export default function FloatingNavbar({
       observer.disconnect();
       window.removeEventListener("scroll", checkTop);
     };
-  }, [navItems]);
+  }, [onTabChange]);
 
   // Update indicator position and size when activeIndex or nav changes
   useEffect(() => {
-    const btn = btnRefs.current[activeIndex];
     const container = containerRef.current;
-    if (btn && container) {
-      const btnRect = btn.getBoundingClientRect();
+    let targetElement = null;
+    
+    // Get the correct element based on active index
+    if (activeIndex === 2) {
+      targetElement = centerRef.current; // Center element (ArcheDAO)
+    } else if (activeIndex < 2) {
+      targetElement = btnRefs.current[activeIndex]; // Left side elements
+    } else {
+      targetElement = btnRefs.current[activeIndex - 1]; // Right side elements (adjust for center)
+    }
+    
+    if (targetElement && container) {
+      const btnRect = targetElement.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
       const gap = 32; // gap-8 = 2rem = 32px
       const halfGap = gap / 2;
       const style: { left: number; width: number } = { left: 0, width: 0 };
+      
       if (activeIndex === 0) {
-        // Extend to the left edge (include left padding), only extend right
+        // First element (leftmost) - extend to the left edge
         style.left = 0;
         style.width = btnRect.right - containerRect.left + halfGap;
-      } else if (activeIndex === navItems.length - 1) {
-        // Extend to the right edge (include right padding), only extend left
+      } else if (activeIndex === 4) {
+        // Last element (rightmost) - extend to the right edge
         style.left = btnRect.left - containerRect.left - halfGap;
         style.width = containerRect.right - btnRect.left + halfGap;
       } else {
-        // Normal case: extend left and right by half the gap
+        // Middle elements - normal case
         style.left = btnRect.left - containerRect.left - halfGap;
         style.width = btnRect.width + gap;
       }
       setIndicatorStyle(style);
     }
-  }, [activeIndex, navItems]);
+  }, [activeIndex]);
 
   const handleNavigate = (link: string, index: number) => {
     if (!link) return;
-    setActiveSection(link);
-    setActiveIndex(index);
+    
+    // Call onTabChange callback if provided, otherwise update internal state
+    if (onTabChange) {
+      onTabChange(link, index);
+    } else {
+      setActiveSection(link);
+      setActiveIndex(index);
+    }
+    
     if (link.startsWith("#")) {
-      const element = document.querySelector(link);
-      if (element) {
-        element.scrollIntoView({ behavior: "smooth" });
+      if (link === "#") {
+        // Scroll to top for home link
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        const element = document.querySelector(link);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth" });
+        }
       }
     } else {
       window.location.href = link;
     }
+  };
+
+  const handleCenterClick = () => {
+    // Call onTabChange callback if provided, otherwise update internal state
+    if (onTabChange) {
+      onTabChange("#", 2);
+    } else {
+      setActiveSection("#");
+      setActiveIndex(2);
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -129,49 +192,76 @@ export default function FloatingNavbar({
       <div
         ref={containerRef}
         className={`
-          relative flex items-center justify-center gap-8 px-8 py-4 rounded-full
-          backdrop-blur-md bg-white/10 border border-white/20
-          shadow-lg shadow-black/25
+          relative flex items-center justify-between gap-8 px-8 py-4 rounded-full
+          backdrop-blur-xl bg-gradient-to-br from-white/20 via-white/5 to-white/20
+          shadow-2xl shadow-black/40
           transition-all duration-300
-          ${isScrolled ? "bg-white/5 border-white/10" : ""}
+          ${isScrolled ? "bg-gradient-to-br from-white/15 via-white/3 to-white/15 border-white/20" : ""}
         `}
+        style={{
+          background: isScrolled 
+            ? 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.02) 35%, rgba(255,255,255,0.02) 65%, rgba(255,255,255,0.15) 100%)'
+            : 'linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.05) 35%, rgba(255,255,255,0.05) 65%, rgba(255,255,255,0.25) 100%)',
+          backdropFilter: 'blur(24px) saturate(180%)',
+          borderImage: 'linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.4) 100%) 1',
+          boxShadow: `
+            0 8px 32px rgba(0,0,0,0.4),
+            0 2px 8px rgba(0,0,0,0.2),
+            inset 0 1px 0 rgba(255,255,255,0.3),
+            inset 0 -1px 0 rgba(255,255,255,0.1),
+            0 0 0 1px rgba(255,255,255,0.1)
+          `,
+        }}
       >
-        {/* Moving Active State Background */}
+        {/* Moving Active State Background - Hidden when center (ArcheDAO) is selected */}
         <div
           className={`
             absolute top-0 left-0 h-full pointer-events-none
-            bg-gradient-to-r from-white/30 via-white/20 to-white/30
-            backdrop-blur-lg shadow-inner
             transition-all duration-500 ease-in-out
+            ${activeIndex === 2 ? 'opacity-0' : 'opacity-100'}
           `}
           style={{
             width: indicatorStyle.width,
             left: indicatorStyle.left,
-            background:
-              "linear-gradient(135deg, rgba(255,0,64,0.35) 0%, rgba(255,0,64,0.15) 50%, rgba(255,0,64,0.35) 100%)",
-            backdropFilter: "blur(12px)",
-            boxShadow:
-              "0 0 25px rgba(255, 0, 64, 0.4), inset 0 0 25px rgba(255, 0, 64, 0.2)",
+            background: `
+              linear-gradient(135deg, 
+                rgba(255,0,64,0.4) 0%, 
+                rgba(255,0,64,0.1) 25%, 
+                rgba(255,0,64,0.05) 50%, 
+                rgba(255,0,64,0.1) 75%, 
+                rgba(255,0,64,0.4) 100%
+              )
+            `,
+            backdropFilter: "blur(16px) saturate(150%)",
+            boxShadow: `
+              0 0 30px rgba(255, 0, 64, 0.5),
+              0 0 60px rgba(255, 0, 64, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.4),
+              inset 0 -1px 0 rgba(255, 0, 64, 0.3),
+              inset 0 0 20px rgba(255, 0, 64, 0.1),
+              0 2px 8px rgba(255, 0, 64, 0.3)
+            `,
+            border: '1px solid rgba(255, 0, 64, 0.3)',
             borderTopLeftRadius:
               activeIndex === 0
                 ? "9999px"
-                : activeIndex === navItems.length - 1
+                : activeIndex === 4
                 ? "2000px"
                 : "12px",
             borderBottomLeftRadius:
               activeIndex === 0
                 ? "9999px"
-                : activeIndex === navItems.length - 1
+                : activeIndex === 4
                 ? "2000px"
                 : "12px",
             borderTopRightRadius:
-              activeIndex === navItems.length - 1
+              activeIndex === 4
                 ? "9999px"
                 : activeIndex === 0
                 ? "2000px"
                 : "12px",
             borderBottomRightRadius:
-              activeIndex === navItems.length - 1
+              activeIndex === 4
                 ? "9999px"
                 : activeIndex === 0
                 ? "2000px"
@@ -179,27 +269,80 @@ export default function FloatingNavbar({
             transition: "all 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
           }}
         />
-        {navItems.map(({ label, link }, index) => {
-          const isActive = activeSection === link;
-          return (
-            <button
-              key={label}
-              ref={(el) => {
-                btnRefs.current[index] = el;
-              }}
-              onClick={() => handleNavigate(link, index)}
-              className={`
-                relative px-6 py-2 rounded-lg text-lg font-medium text-white
-                transition-all duration-300
-                group
-                z-10
-                ${isActive ? "" : ""}
-              `}
-            >
-              <span className="relative z-10">{label}</span>
-            </button>
-          );
-        })}
+        {/* Left Nav Items */}
+        <div className="flex items-center gap-6">
+          {leftItems.map(({ label, link }, index) => {
+            const isActive = activeSection === link;
+            return (
+              <button
+                key={label}
+                ref={(el) => {
+                  btnRefs.current[index] = el;
+                }}
+                onClick={() => handleNavigate(link, index)}
+                className={`
+                  relative px-6 py-2 rounded-lg text-lg font-medium text-white
+                  transition-all duration-300
+                  group
+                  z-10
+                  ${isActive ? "" : ""}
+                `}
+              >
+                <span className="relative z-10">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Center Company Name */}
+        <button
+          ref={centerRef}
+          onClick={handleCenterClick}
+          className={`
+            relative px-8 py-3 rounded-lg text-2xl font-black text-white
+            transition-all duration-300
+            group
+            z-10
+            ${activeSection === "#" ? "text-white" : ""}
+          `}
+          style={{
+            fontFamily: 'Jost, ui-sans-serif, system-ui, sans-serif',
+            textShadow: activeSection === "#" 
+              ? "0 0 15px rgba(255, 0, 64, 0.9), 0 0 30px rgba(255, 0, 64, 0.5), 0 2px 4px rgba(0, 0, 0, 0.3)" 
+              : "0 2px 4px rgba(0, 0, 0, 0.4)",
+            letterSpacing: "0.05em",
+          }}
+        >
+          <span className="relative z-10 bg-gradient-to-r from-white via-pink-100 to-white bg-clip-text text-transparent">
+            ArcheDAO
+          </span>
+        </button>
+
+        {/* Right Nav Items */}
+        <div className="flex items-center gap-6">
+          {rightItems.map(({ label, link }, index) => {
+            const isActive = activeSection === link;
+            const actualIndex = index + 2; // Adjust for left items
+            return (
+              <button
+                key={label}
+                ref={(el) => {
+                  btnRefs.current[actualIndex] = el;
+                }}
+                onClick={() => handleNavigate(link, actualIndex + 1)} // +1 for center element
+                className={`
+                  relative px-6 py-2 rounded-lg text-lg font-medium text-white
+                  transition-all duration-300
+                  group
+                  z-10
+                  ${isActive ? "" : ""}
+                `}
+              >
+                <span className="relative z-10">{label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );

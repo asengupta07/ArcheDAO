@@ -180,7 +180,7 @@ export default function Home() {
       </section>
 
       {/* How It Works Section */}
-      <section className="relative z-10 py-24 px-4">
+      <section id="how-it-works" className="relative z-10 py-24 px-4">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <BlurText
@@ -226,7 +226,7 @@ export default function Home() {
       </section>
 
       {/* Features Section */}
-      <section className="relative z-10 py-24 px-4">
+      <section id="features" className="relative z-10 py-24 px-4">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <BlurText
@@ -369,7 +369,7 @@ export default function Home() {
       </section>
 
       {/* Final CTA Section */}
-      <section className="relative z-10 py-24 px-4">
+      <section id="get-started" className="relative z-10 py-24 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <BlurText
             text="Ready to Transform DAO Governance?"

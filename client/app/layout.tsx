@@ -36,12 +36,12 @@ export default function RootLayout({ children }: PropsWithChildren) {
                 <WalletSelector className="px-6 py-2 text-base font-semibold" />
               </div>
               <Navbar
-                navItems={[
-                  { label: "Home", link: "#" },
-                  { label: "Wallet", link: "#wallet" },
-                  { label: "Features", link: "#features" },
-                  { label: "About", link: "#about" },
-                ]}
+                // navItems={[
+                //   { label: "Home", link: "#" },
+                //   { label: "How It Works", link: "#how-it-works" },
+                //   { label: "Features", link: "#features" },
+                //   { label: "Get Started", link: "#get-started" },
+                // ]}
               />
               {children}
             </WalletProvider>
