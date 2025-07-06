@@ -10,10 +10,10 @@ declare global {
   }
 }
 
-import { AptosWalletAdapterProvider } from "@aptos-labs/wallet-adapter-react";
+import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
 import { setupAutomaticEthereumWalletDerivation } from "@aptos-labs/derived-wallet-ethereum";
 import { setupAutomaticSolanaWalletDerivation } from "@aptos-labs/derived-wallet-solana";
-import { PropsWithChildren } from "react";
+import { PropsWithChildren, useEffect } from "react";
 import { Network } from "@aptos-labs/ts-sdk";
 import { useClaimSecretKey } from "@/hooks/useClaimSecretKey";
 import { useAutoConnect } from "./AutoConnectProvider";
@@ -35,6 +35,21 @@ if (deriveWalletsFrom?.includes("solana")) {
 let dappImageURI: string | undefined;
 if (typeof window !== "undefined") {
   dappImageURI = `${window.location.origin}${window.location.pathname}favicon.ico`;
+}
+
+// Create a wrapper component to handle wallet state
+function WalletStateHandler({ children }: PropsWithChildren) {
+  const { connected } = useWallet();
+  const { setAutoConnect } = useAutoConnect();
+
+  useEffect(() => {
+    if (connected) {
+      // When successfully connected, ensure autoConnect is enabled
+      setAutoConnect(true);
+    }
+  }, [connected, setAutoConnect]);
+
+  return <>{children}</>;
 }
 
 export const WalletProvider = ({ children }: PropsWithChildren) => {
@@ -71,7 +86,9 @@ export const WalletProvider = ({ children }: PropsWithChildren) => {
         });
       }}
     >
-      {children}
+      <WalletStateHandler>
+        {children}
+      </WalletStateHandler>
     </AptosWalletAdapterProvider>
   );
 };

@@ -28,15 +28,20 @@ export function useAutoConnect(): AutoConnectContextState {
 export const AutoConnectProvider: FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [autoConnect, setAutoConnect] = useState(false);
+  // Initialize to true by default
+  const [autoConnect, setAutoConnect] = useState(true);
 
   useEffect(() => {
-    // Wait until the app hydrates before populating `autoConnect` from local storage
     try {
-      const isAutoConnect = localStorage.getItem(
-        AUTO_CONNECT_LOCAL_STORAGE_KEY,
-      );
-      if (isAutoConnect) return setAutoConnect(JSON.parse(isAutoConnect));
+      const isAutoConnect = localStorage.getItem(AUTO_CONNECT_LOCAL_STORAGE_KEY);
+      // If no value is set in localStorage, keep it true (default)
+      // Only set to false if explicitly set to false in localStorage
+      if (isAutoConnect !== null) {
+        setAutoConnect(JSON.parse(isAutoConnect));
+      } else {
+        // Set initial value in localStorage
+        localStorage.setItem(AUTO_CONNECT_LOCAL_STORAGE_KEY, JSON.stringify(true));
+      }
     } catch (e) {
       if (typeof window !== "undefined") {
         console.error(e);
@@ -46,14 +51,7 @@ export const AutoConnectProvider: FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     try {
-      if (!autoConnect) {
-        localStorage.removeItem(AUTO_CONNECT_LOCAL_STORAGE_KEY);
-      } else {
-        localStorage.setItem(
-          AUTO_CONNECT_LOCAL_STORAGE_KEY,
-          JSON.stringify(autoConnect),
-        );
-      }
+      localStorage.setItem(AUTO_CONNECT_LOCAL_STORAGE_KEY, JSON.stringify(autoConnect));
     } catch (error: any) {
       if (typeof window !== "undefined") {
         console.error(error);

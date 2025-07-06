@@ -27,7 +27,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
     <html lang="en" suppressHydrationWarning>
       <body
         className={cn(
-          "flex justify-center min-h-screen bg-background font-sans antialiased",
+          "flex justify-center min-h-screen bg-black font-sans antialiased",
           fontSans.variable
         )}
       >
