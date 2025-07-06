@@ -14,7 +14,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import InViewMotion from "@/components/InViewMotion";
-import { Aurora } from "@/components/aurora";
+
+import { GradientBackground } from "@/components/ui/gradient-background";
 import {
   Vote,
   Timer,
@@ -38,15 +39,11 @@ import {
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
-import { 
-  useProposals, 
-  ProposalInfo, 
-  AIPInfo,
-} from "@/hooks/useProposals";
-import { 
-  PROPOSAL_STATUS, 
-  VOTE_TYPES, 
-  getProposalStatusLabel, 
+import { useProposals, ProposalInfo, AIPInfo } from "@/hooks/useProposals";
+import {
+  PROPOSAL_STATUS,
+  VOTE_TYPES,
+  getProposalStatusLabel,
   getProposalStatusColor,
   getUserTypeLabel,
 } from "@/config/contract";
@@ -56,9 +53,11 @@ export default function ProposalsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const daoId = searchParams.get("daoId") || "1"; // Default to DAO 1 or get from URL
-  
+
   const [filter, setFilter] = useState("all");
-  const [selectedProposal, setSelectedProposal] = useState<ProposalInfo | null>(null);
+  const [selectedProposal, setSelectedProposal] = useState<ProposalInfo | null>(
+    null
+  );
   const [newProposal, setNewProposal] = useState({
     title: "",
     description: "",
@@ -88,12 +87,18 @@ export default function ProposalsPage() {
     refetch,
   } = useProposals(daoId);
 
-  const handleVote = async (proposalId: string, vote: "yes" | "no" | "abstain") => {
+  const handleVote = async (
+    proposalId: string,
+    vote: "yes" | "no" | "abstain"
+  ) => {
     try {
-      const voteValue = vote === "yes" ? VOTE_TYPES.FOR : 
-                        vote === "no" ? VOTE_TYPES.AGAINST : 
-                        VOTE_TYPES.ABSTAIN;
-      
+      const voteValue =
+        vote === "yes"
+          ? VOTE_TYPES.FOR
+          : vote === "no"
+          ? VOTE_TYPES.AGAINST
+          : VOTE_TYPES.ABSTAIN;
+
       await voteOnProposal(proposalId, voteValue);
       toast({
         title: "Vote Submitted",
@@ -131,7 +136,12 @@ export default function ProposalsPage() {
         description: "Your proposal has been submitted successfully.",
       });
 
-      setNewProposal({ title: "", description: "", category: "General", linkedAip: "" });
+      setNewProposal({
+        title: "",
+        description: "",
+        category: "General",
+        linkedAip: "",
+      });
       setShowCreateDialog(false);
     } catch (error: any) {
       toast({
@@ -164,8 +174,10 @@ export default function ProposalsPage() {
     setIsStaking(true);
     try {
       // Convert APT to octas (1 APT = 100,000,000 octas)
-      const amountInOctas = Math.floor(Number(stakeAmount) * 100_000_000).toString();
-      
+      const amountInOctas = Math.floor(
+        Number(stakeAmount) * 100_000_000
+      ).toString();
+
       await stakeForVotingPower(amountInOctas);
 
       toast({
@@ -195,7 +207,9 @@ export default function ProposalsPage() {
       return;
     }
 
-    const maxUnstake = userStakingInfo ? Number(userStakingInfo.staked_apt) / 100_000_000 : 0;
+    const maxUnstake = userStakingInfo
+      ? Number(userStakingInfo.staked_apt) / 100_000_000
+      : 0;
     if (Number(unstakeAmount) > maxUnstake) {
       toast({
         title: "Amount Too Large",
@@ -208,8 +222,10 @@ export default function ProposalsPage() {
     setIsUnstaking(true);
     try {
       // Convert APT to octas (1 APT = 100,000,000 octas)
-      const amountInOctas = Math.floor(Number(unstakeAmount) * 100_000_000).toString();
-      
+      const amountInOctas = Math.floor(
+        Number(unstakeAmount) * 100_000_000
+      ).toString();
+
       await unstakeVotingPower(amountInOctas);
 
       toast({
@@ -252,12 +268,12 @@ export default function ProposalsPage() {
     const now = Math.floor(Date.now() / 1000);
     const end = Number(endTime);
     const diff = end - now;
-    
+
     if (diff <= 0) return "Ended";
-    
+
     const days = Math.floor(diff / 86400);
     const hours = Math.floor((diff % 86400) / 3600);
-    
+
     if (days > 0) return `${days}d ${hours}h`;
     if (hours > 0) return `${hours}h`;
     return "< 1h";
@@ -280,12 +296,7 @@ export default function ProposalsPage() {
     return (
       <div className="min-h-screen relative">
         <div className="fixed inset-0 z-0">
-          <Aurora
-            colorStops={["#8B0000", "#660000", "#8B0000"]}
-            amplitude={1.2}
-            speed={0.3}
-            blend={0.8}
-          />
+          <GradientBackground />
         </div>
         <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
           <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
@@ -306,19 +317,14 @@ export default function ProposalsPage() {
   return (
     <div className="min-h-screen relative">
       <div className="fixed inset-0 z-0">
-        <Aurora
-          colorStops={["#8B0000", "#660000", "#8B0000"]}
-          amplitude={1.2}
-          speed={0.3}
-          blend={0.8}
-        />
+        <GradientBackground />
       </div>
 
-      <div className="relative z-10 container mx-auto px-4 py-[8rem] mt-6">
+      <div className="relative z-10 container mx-auto px-8 py-[6rem] mt-4 max-w-[1920px]">
         {/* Header */}
         <InViewMotion>
           <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6">
               <Button
                 variant="ghost"
                 size="sm"
@@ -351,7 +357,7 @@ export default function ProposalsPage() {
             </div>
             <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
               <DialogTrigger asChild>
-                <Button 
+                <Button
                   className="bg-gradient-to-r from-red-900 to-red-700"
                   disabled={!canCreateProposal()}
                 >
@@ -471,7 +477,8 @@ export default function ProposalsPage() {
                   </span>
                 </div>
                 <p className="text-yellow-200 text-sm mt-1">
-                  As a member, you can vote on existing proposals and stake tokens to increase your voting power.
+                  As a member, you can vote on existing proposals and stake
+                  tokens to increase your voting power.
                 </p>
               </CardContent>
             </Card>
@@ -480,293 +487,370 @@ export default function ProposalsPage() {
 
         {/* Staking & Voting Power Section */}
         <InViewMotion>
-          <div className="mb-8">
-            <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <Coins className="w-5 h-5 text-red-400" />
-                  Staking & Voting Power
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* User Role & Status */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Badge className={
-                      userMembership?.is_creator 
-                        ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
-                        : userMembership?.is_governor
-                        ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
-                        : userStakingInfo?.can_vote
-                        ? "bg-green-500/20 text-green-400 border-green-500/30"
-                        : "bg-red-500/20 text-red-400 border-red-500/30"
-                    }>
-                      {userMembership?.is_creator 
-                        ? "DAO Creator" 
-                        : userMembership?.is_governor 
-                        ? "Governor" 
-                        : userMembership?.is_member 
-                        ? "Member" 
-                        : "Not a member"}
-                    </Badge>
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    Privileges: {
-                      userMembership?.is_creator 
-                        ? "Create Proposals, Govern DAO, Vote" 
-                        : userMembership?.is_governor 
-                        ? "Govern DAO, Vote" 
-                        : userStakingInfo?.can_vote 
-                        ? "Vote" 
-                        : "View Only"
-                    }
-                  </div>
-                </div>
-
-                {/* Current Staking Status */}
-                <div className="grid grid-cols-2 gap-4">
+          <div className="mb-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="xl:col-span-2">
+              <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl h-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-white">
+                    <Coins className="w-5 h-5 text-red-400" />
+                    Staking & Voting Power
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* User Role & Status */}
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-gray-400">
-                      <Wallet className="w-4 h-4" />
-                      <span className="text-sm">Staked APT</span>
-                    </div>
-                    <div className="text-2xl font-bold text-white">
-                      {userStakingInfo 
-                        ? (Number(userStakingInfo.staked_apt) / 100_000_000).toFixed(4) 
-                        : "0.0000"} APT
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-gray-400">
-                      <Vote className="w-4 h-4" />
-                      <span className="text-sm">Voting Power</span>
-                    </div>
-                    <div className="text-2xl font-bold text-white">
-                      {userStakingInfo 
-                        ? (Number(userStakingInfo.voting_percentage) / 100).toFixed(2) 
-                        : "0.00"}%
+                    <div className="flex items-center justify-between">
+                      <Badge
+                        className={
+                          userMembership?.is_creator
+                            ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                            : userMembership?.is_governor
+                            ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
+                            : userStakingInfo?.can_vote
+                            ? "bg-green-500/20 text-green-400 border-green-500/30"
+                            : "bg-red-500/20 text-red-400 border-red-500/30"
+                        }
+                      >
+                        {userMembership?.is_creator
+                          ? "DAO Creator"
+                          : userMembership?.is_governor
+                          ? "Governor"
+                          : userMembership?.is_member
+                          ? "Member"
+                          : "Not a member"}
+                      </Badge>
                     </div>
                     <div className="text-xs text-gray-400">
-                      {userStakingInfo 
-                        ? (Number(userStakingInfo.calculated_voting_power) / 100).toFixed(2) 
-                        : "0.00"} basis points
+                      Privileges:{" "}
+                      {userMembership?.is_creator
+                        ? "Create Proposals, Govern DAO, Vote"
+                        : userMembership?.is_governor
+                        ? "Govern DAO, Vote"
+                        : userStakingInfo?.can_vote
+                        ? "Vote"
+                        : "View Only"}
                     </div>
                   </div>
-                </div>
 
-                {/* Voting Power Breakdown */}
-                {userStakingInfo && (Number(userStakingInfo.reserved_power) > 0 || Number(userStakingInfo.staked_power) > 0) && (
-                  <div className="space-y-2">
-                    <div className="text-sm text-gray-400">Power Breakdown</div>
-                    <div className="space-y-1">
-                      {Number(userStakingInfo.reserved_power) > 0 && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-blue-400">Reserved (Role)</span>
-                          <span className="text-white">{(Number(userStakingInfo.reserved_power) / 100).toFixed(2)} bp</span>
+                  {/* Current Staking Status */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-gray-400">
+                        <Wallet className="w-4 h-4" />
+                        <span className="text-sm">Staked APT</span>
+                      </div>
+                      <div className="text-2xl font-bold text-white">
+                        {userStakingInfo
+                          ? (
+                              Number(userStakingInfo.staked_apt) / 100_000_000
+                            ).toFixed(4)
+                          : "0.0000"}{" "}
+                        APT
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-gray-400">
+                        <Vote className="w-4 h-4" />
+                        <span className="text-sm">Voting Power</span>
+                      </div>
+                      <div className="text-2xl font-bold text-white">
+                        {userStakingInfo
+                          ? (
+                              Number(userStakingInfo.voting_percentage) / 100
+                            ).toFixed(2)
+                          : "0.00"}
+                        %
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {userStakingInfo
+                          ? (
+                              Number(userStakingInfo.calculated_voting_power) /
+                              100
+                            ).toFixed(2)
+                          : "0.00"}{" "}
+                        basis points
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Voting Power Breakdown */}
+                  {userStakingInfo &&
+                    (Number(userStakingInfo.reserved_power) > 0 ||
+                      Number(userStakingInfo.staked_power) > 0) && (
+                      <div className="space-y-2">
+                        <div className="text-sm text-gray-400">
+                          Power Breakdown
                         </div>
-                      )}
-                      {Number(userStakingInfo.staked_power) > 0 && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-green-400">Staked</span>
-                          <span className="text-white">{(Number(userStakingInfo.staked_power) / 100).toFixed(2)} bp</span>
+                        <div className="space-y-1">
+                          {Number(userStakingInfo.reserved_power) > 0 && (
+                            <div className="flex justify-between text-xs">
+                              <span className="text-blue-400">
+                                Reserved (Role)
+                              </span>
+                              <span className="text-white">
+                                {(
+                                  Number(userStakingInfo.reserved_power) / 100
+                                ).toFixed(2)}{" "}
+                                bp
+                              </span>
+                            </div>
+                          )}
+                          {Number(userStakingInfo.staked_power) > 0 && (
+                            <div className="flex justify-between text-xs">
+                              <span className="text-green-400">Staked</span>
+                              <span className="text-white">
+                                {(
+                                  Number(userStakingInfo.staked_power) / 100
+                                ).toFixed(2)}{" "}
+                                bp
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                      </div>
+                    )}
 
-                {/* DAO Statistics */}
-                {userStakingInfo && (
-                  <div className="grid grid-cols-3 gap-3 p-3 bg-red-900/10 rounded-lg border border-red-900/20">
-                    <div className="text-center">
-                      <div className="text-sm text-gray-400">Total Staked</div>
-                      <div className="font-bold text-white">
-                        {(Number(userStakingInfo.total_dao_staked) / 100_000_000).toFixed(4)} APT
+                  {/* DAO Statistics */}
+                  {userStakingInfo && (
+                    <div className="grid grid-cols-3 md:grid-cols-6 gap-3 p-3 bg-red-900/10 rounded-lg border border-red-900/20">
+                      <div className="text-center">
+                        <div className="text-sm text-gray-400">
+                          Total Staked
+                        </div>
+                        <div className="font-bold text-white">
+                          {(
+                            Number(userStakingInfo.total_dao_staked) /
+                            100_000_000
+                          ).toFixed(4)}{" "}
+                          APT
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-sm text-gray-400">Your Share</div>
-                      <div className="font-bold text-white">
-                        {Number(userStakingInfo.total_dao_staked) > 0 
-                          ? (((Number(userStakingInfo.staked_apt) / 100_000_000) / (Number(userStakingInfo.total_dao_staked) / 100_000_000)) * 100).toFixed(2) 
-                          : "0.00"}%
+                      <div className="text-center">
+                        <div className="text-sm text-gray-400">Your Share</div>
+                        <div className="font-bold text-white">
+                          {Number(userStakingInfo.total_dao_staked) > 0
+                            ? (
+                                (Number(userStakingInfo.staked_apt) /
+                                  100_000_000 /
+                                  (Number(userStakingInfo.total_dao_staked) /
+                                    100_000_000)) *
+                                100
+                              ).toFixed(2)
+                            : "0.00"}
+                          %
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-sm text-gray-400">Min Stake</div>
-                      <div className="font-bold text-white">
-                        0.01 APT
+                      <div className="text-center">
+                        <div className="text-sm text-gray-400">Min Stake</div>
+                        <div className="font-bold text-white">0.01 APT</div>
                       </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Voting Status Badge */}
-                <div className="flex items-center justify-between">
-                  <Badge 
-                    className={
-                      userStakingInfo?.can_vote
-                        ? "bg-green-500/20 text-green-400 border-green-500/30"
-                        : "bg-red-500/20 text-red-400 border-red-500/30"
-                    }
-                  >
-                    {userStakingInfo?.can_vote ? "✓ Can Vote" : "✗ Cannot Vote"}
-                  </Badge>
-                  
-                  {!userStakingInfo?.can_vote && (
-                    <div className="flex items-center gap-1 text-yellow-400 text-sm">
-                      <Info className="w-4 h-4" />
-                      <span>Stake to gain voting power</span>
                     </div>
                   )}
-                </div>
 
-                {/* Staking Actions */}
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Stake Dialog */}
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button 
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        disabled={loading}
-                      >
-                        <ArrowUp className="w-4 h-4 mr-2" />
-                        Stake APT
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="bg-black/90 border-red-900/20 text-white">
-                      <DialogHeader>
-                        <DialogTitle>Stake APT for Voting Power</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4 p-4">
-                        <div className="space-y-2">
-                          <label className="text-white font-medium">
-                            Amount to Stake (APT)
-                          </label>
-                          <Input
-                            type="number"
-                            step="0.0001"
-                            min="0"
-                            value={stakeAmount}
-                            onChange={(e) => setStakeAmount(e.target.value)}
-                            className="bg-white/5 border-red-900/20 text-white"
-                            placeholder="0.0000"
-                          />
-                          <div className="text-xs text-gray-400">
-                            Minimum stake: 0.01 APT
-                          </div>
-                        </div>
-                        <Button
-                          onClick={handleStaking}
-                          className="w-full bg-gradient-to-r from-green-600 to-green-700"
-                          disabled={loading || isStaking || !stakeAmount || Number(stakeAmount) <= 0}
-                        >
-                          {isStaking ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Staking...
-                            </>
-                          ) : (
-                            "Stake APT"
-                          )}
-                        </Button>
+                  {/* Voting Status Badge */}
+                  <div className="flex items-center justify-between">
+                    <Badge
+                      className={
+                        userStakingInfo?.can_vote
+                          ? "bg-green-500/20 text-green-400 border-green-500/30"
+                          : "bg-red-500/20 text-red-400 border-red-500/30"
+                      }
+                    >
+                      {userStakingInfo?.can_vote
+                        ? "✓ Can Vote"
+                        : "✗ Cannot Vote"}
+                    </Badge>
+
+                    {!userStakingInfo?.can_vote && (
+                      <div className="flex items-center gap-1 text-yellow-400 text-sm">
+                        <Info className="w-4 h-4" />
+                        <span>Stake to gain voting power</span>
                       </div>
-                    </DialogContent>
-                  </Dialog>
+                    )}
+                  </div>
 
-                  {/* Unstake Dialog */}
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button 
-                        variant="outline"
-                        className="border-red-400/40 text-red-400 hover:bg-red-900/20"
-                        disabled={loading || !userStakingInfo || Number(userStakingInfo.staked_apt) === 0}
-                      >
-                        <ArrowDown className="w-4 h-4 mr-2" />
-                        Unstake
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="bg-black/90 border-red-900/20 text-white">
-                      <DialogHeader>
-                        <DialogTitle>Unstake APT</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4 p-4">
-                        <div className="space-y-2">
-                          <label className="text-white font-medium">
-                            Amount to Unstake (APT)
-                          </label>
-                          <Input
-                            type="number"
-                            step="0.0001"
-                            min="0"
-                            max={userStakingInfo ? Number(userStakingInfo.staked_apt) / 100_000_000 : 0}
-                            value={unstakeAmount}
-                            onChange={(e) => setUnstakeAmount(e.target.value)}
-                            className="bg-white/5 border-red-900/20 text-white"
-                            placeholder="0.0000"
-                          />
-                          <div className="text-xs text-gray-400">
-                            Available to unstake: {userStakingInfo 
-                              ? (Number(userStakingInfo.staked_apt) / 100_000_000).toFixed(4) 
-                              : "0.0000"} APT
-                          </div>
-                        </div>
+                  {/* Staking Actions */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Stake Dialog */}
+                    <Dialog>
+                      <DialogTrigger asChild>
                         <Button
-                          onClick={handleUnstaking}
-                          className="w-full bg-gradient-to-r from-red-600 to-red-700"
-                          disabled={loading || isUnstaking || !unstakeAmount || Number(unstakeAmount) <= 0}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          disabled={loading}
                         >
-                          {isUnstaking ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Unstaking...
-                            </>
-                          ) : (
-                            "Unstake APT"
-                          )}
+                          <ArrowUp className="w-4 h-4 mr-2" />
+                          Stake APT
                         </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+                      </DialogTrigger>
+                      <DialogContent className="bg-black/90 border-red-900/20 text-white">
+                        <DialogHeader>
+                          <DialogTitle>Stake APT for Voting Power</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 p-4">
+                          <div className="space-y-2">
+                            <label className="text-white font-medium">
+                              Amount to Stake (APT)
+                            </label>
+                            <Input
+                              type="number"
+                              step="0.0001"
+                              min="0"
+                              value={stakeAmount}
+                              onChange={(e) => setStakeAmount(e.target.value)}
+                              className="bg-white/5 border-red-900/20 text-white"
+                              placeholder="0.0000"
+                            />
+                            <div className="text-xs text-gray-400">
+                              Minimum stake: 0.01 APT
+                            </div>
+                          </div>
+                          <Button
+                            onClick={handleStaking}
+                            className="w-full bg-gradient-to-r from-green-600 to-green-700"
+                            disabled={
+                              loading ||
+                              isStaking ||
+                              !stakeAmount ||
+                              Number(stakeAmount) <= 0
+                            }
+                          >
+                            {isStaking ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Staking...
+                              </>
+                            ) : (
+                              "Stake APT"
+                            )}
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
 
-                {/* Information Box */}
-                <div className="p-3 bg-blue-900/10 rounded-lg border border-blue-900/20">
-                  <div className="flex items-start gap-2">
-                    <Info className="w-4 h-4 text-blue-400 mt-0.5" />
-                    <div className="text-xs text-blue-400">
-                      <div className="font-medium mb-1">Voting Power System:</div>
-                      <ul className="space-y-1 text-blue-300">
-                        <li>• Governors and creators get reserved voting power</li>
-                        <li>• Additional power comes from staking APT tokens</li>
-                        <li>• Minimum 0.01 APT stake required to vote</li>
-                        <li>• Unstaking may be restricted during active proposals</li>
-                      </ul>
+                    {/* Unstake Dialog */}
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="border-red-400/40 text-red-400 hover:bg-red-900/20"
+                          disabled={
+                            loading ||
+                            !userStakingInfo ||
+                            Number(userStakingInfo.staked_apt) === 0
+                          }
+                        >
+                          <ArrowDown className="w-4 h-4 mr-2" />
+                          Unstake
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="bg-black/90 border-red-900/20 text-white">
+                        <DialogHeader>
+                          <DialogTitle>Unstake APT</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 p-4">
+                          <div className="space-y-2">
+                            <label className="text-white font-medium">
+                              Amount to Unstake (APT)
+                            </label>
+                            <Input
+                              type="number"
+                              step="0.0001"
+                              min="0"
+                              max={
+                                userStakingInfo
+                                  ? Number(userStakingInfo.staked_apt) /
+                                    100_000_000
+                                  : 0
+                              }
+                              value={unstakeAmount}
+                              onChange={(e) => setUnstakeAmount(e.target.value)}
+                              className="bg-white/5 border-red-900/20 text-white"
+                              placeholder="0.0000"
+                            />
+                            <div className="text-xs text-gray-400">
+                              Available to unstake:{" "}
+                              {userStakingInfo
+                                ? (
+                                    Number(userStakingInfo.staked_apt) /
+                                    100_000_000
+                                  ).toFixed(4)
+                                : "0.0000"}{" "}
+                              APT
+                            </div>
+                          </div>
+                          <Button
+                            onClick={handleUnstaking}
+                            className="w-full bg-gradient-to-r from-red-600 to-red-700"
+                            disabled={
+                              loading ||
+                              isUnstaking ||
+                              !unstakeAmount ||
+                              Number(unstakeAmount) <= 0
+                            }
+                          >
+                            {isUnstaking ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Unstaking...
+                              </>
+                            ) : (
+                              "Unstake APT"
+                            )}
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+
+                  {/* Information Box */}
+                  <div className="p-3 bg-blue-900/10 rounded-lg border border-blue-900/20">
+                    <div className="flex items-start gap-2">
+                      <Info className="w-4 h-4 text-blue-400 mt-0.5" />
+                      <div className="text-xs text-blue-400">
+                        <div className="font-medium mb-1">
+                          Voting Power System:
+                        </div>
+                        <ul className="space-y-1 text-blue-300">
+                          <li>
+                            • Governors and creators get reserved voting power
+                          </li>
+                          <li>
+                            • Additional power comes from staking APT tokens
+                          </li>
+                          <li>• Minimum 0.01 APT stake required to vote</li>
+                          <li>
+                            • Unstaking may be restricted during active
+                            proposals
+                          </li>
+                        </ul>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </InViewMotion>
 
         {/* Filters */}
         <InViewMotion>
           <div className="flex gap-4 mb-6">
-            {["all", "active", "pending", "passed", "rejected"].map((status) => (
-              <Button
-                key={status}
-                variant={filter === status ? "default" : "outline"}
-                onClick={() => setFilter(status)}
-                className={
-                  filter === status
-                    ? "bg-red-900/50 border-red-900/50"
-                    : "border-red-900/20 text-white hover:bg-red-900/20"
-                }
-              >
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-              </Button>
-            ))}
+            {["all", "active", "pending", "passed", "rejected"].map(
+              (status) => (
+                <Button
+                  key={status}
+                  variant={filter === status ? "default" : "outline"}
+                  onClick={() => setFilter(status)}
+                  className={
+                    filter === status
+                      ? "bg-red-900/50 border-red-900/50"
+                      : "border-red-900/20 text-white hover:bg-red-900/20"
+                  }
+                >
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </Button>
+              )
+            )}
           </div>
         </InViewMotion>
 
@@ -797,7 +881,7 @@ export default function ProposalsPage() {
                   Error Loading Proposals
                 </h3>
                 <p className="text-gray-400 mb-4">{error}</p>
-                <Button 
+                <Button
                   onClick={refetch}
                   className="bg-gradient-to-r from-red-900 to-red-700"
                 >
@@ -809,10 +893,10 @@ export default function ProposalsPage() {
         )}
 
         {/* Proposals List */}
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {filteredProposals.map((proposal, index) => (
             <InViewMotion key={proposal.id}>
-              <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
+              <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl h-full">
                 <CardContent className="p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex-1">
@@ -841,11 +925,18 @@ export default function ProposalsPage() {
                       <div className="flex items-center gap-4 text-sm text-gray-400">
                         <div className="flex items-center gap-1">
                           <Users className="w-4 h-4" />
-                          <span>By {proposal.proposer.slice(0, 6)}...{proposal.proposer.slice(-4)}</span>
+                          <span>
+                            By {proposal.proposer.slice(0, 6)}...
+                            {proposal.proposer.slice(-4)}
+                          </span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
-                          <span>{new Date(Number(proposal.created_at) * 1000).toLocaleDateString()}</span>
+                          <span>
+                            {new Date(
+                              Number(proposal.created_at) * 1000
+                            ).toLocaleDateString()}
+                          </span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Timer className="w-4 h-4" />
@@ -854,65 +945,94 @@ export default function ProposalsPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      {proposal.state === PROPOSAL_STATUS.ACTIVE && !proposal.user_voted && userStakingInfo?.can_vote && (
-                        <>
-                          <Button
-                            onClick={() => handleVote(proposal.id, "yes")}
-                            className="bg-green-600 hover:bg-green-700"
-                            size="sm"
-                          >
-                            <CheckCircle className="w-4 h-4 mr-1" />
-                            Vote Yes
-                          </Button>
-                          <Button
-                            onClick={() => handleVote(proposal.id, "no")}
-                            className="bg-red-600 hover:bg-red-700"
-                            size="sm"
-                          >
-                            <XCircle className="w-4 h-4 mr-1" />
-                            Vote No
-                          </Button>
-                        </>
-                      )}
+                      {proposal.state === PROPOSAL_STATUS.ACTIVE &&
+                        !proposal.user_voted &&
+                        userStakingInfo?.can_vote && (
+                          <>
+                            <Button
+                              onClick={() => handleVote(proposal.id, "yes")}
+                              className="bg-green-600 hover:bg-green-700"
+                              size="sm"
+                            >
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Vote Yes
+                            </Button>
+                            <Button
+                              onClick={() => handleVote(proposal.id, "no")}
+                              className="bg-red-600 hover:bg-red-700"
+                              size="sm"
+                            >
+                              <XCircle className="w-4 h-4 mr-1" />
+                              Vote No
+                            </Button>
+                          </>
+                        )}
                       {proposal.user_voted && (
                         <Badge className="bg-red-900/50 text-red-200">
                           You voted
                         </Badge>
                       )}
-                      {!userStakingInfo?.can_vote && proposal.state === PROPOSAL_STATUS.ACTIVE && (
-                        <Badge className="bg-yellow-900/50 text-yellow-200">
-                          Stake to vote
-                        </Badge>
-                      )}
+                      {!userStakingInfo?.can_vote &&
+                        proposal.state === PROPOSAL_STATUS.ACTIVE && (
+                          <Badge className="bg-yellow-900/50 text-yellow-200">
+                            Stake to vote
+                          </Badge>
+                        )}
                     </div>
                   </div>
 
                   {/* Voting Progress */}
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm text-gray-300">
-                      <span>Total Votes: {(Number(proposal.total_votes) / 100_000_000).toFixed(4)} APT</span>
-                      <span>Voting ends: {formatTimeLeft(proposal.end_time)}</span>
+                      <span>
+                        Total Votes:{" "}
+                        {(Number(proposal.total_votes) / 100_000_000).toFixed(
+                          4
+                        )}{" "}
+                        APT
+                      </span>
+                      <span>
+                        Voting ends: {formatTimeLeft(proposal.end_time)}
+                      </span>
                     </div>
                     <div className="flex gap-1 h-2">
                       <div
                         className="bg-green-500 rounded-l"
-                        style={{ 
-                          width: `${formatVotePercentage(proposal.yes_votes, proposal.total_votes)}%` 
+                        style={{
+                          width: `${formatVotePercentage(
+                            proposal.yes_votes,
+                            proposal.total_votes
+                          )}%`,
                         }}
                       />
                       <div
                         className="bg-red-500 rounded-r"
-                        style={{ 
-                          width: `${formatVotePercentage(proposal.no_votes, proposal.total_votes)}%` 
+                        style={{
+                          width: `${formatVotePercentage(
+                            proposal.no_votes,
+                            proposal.total_votes
+                          )}%`,
                         }}
                       />
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-green-500">
-                        {formatVotePercentage(proposal.yes_votes, proposal.total_votes)}% Yes ({(Number(proposal.yes_votes) / 100_000_000).toFixed(4)} APT)
+                        {formatVotePercentage(
+                          proposal.yes_votes,
+                          proposal.total_votes
+                        )}
+                        % Yes (
+                        {(Number(proposal.yes_votes) / 100_000_000).toFixed(4)}{" "}
+                        APT)
                       </span>
                       <span className="text-red-500">
-                        {formatVotePercentage(proposal.no_votes, proposal.total_votes)}% No ({(Number(proposal.no_votes) / 100_000_000).toFixed(4)} APT)
+                        {formatVotePercentage(
+                          proposal.no_votes,
+                          proposal.total_votes
+                        )}
+                        % No (
+                        {(Number(proposal.no_votes) / 100_000_000).toFixed(4)}{" "}
+                        APT)
                       </span>
                     </div>
                   </div>
@@ -953,45 +1073,89 @@ export default function ProposalsPage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {/* Raw Blockchain Data */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                     {/* Left Column - Staking Details */}
                     <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-white mb-3">Smart Contract Data</h3>
+                      <h3 className="text-lg font-semibold text-white mb-3">
+                        Smart Contract Data
+                      </h3>
                       <div className="space-y-3">
                         <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg">
-                          <span className="text-gray-400">Staked APT (Raw)</span>
-                          <span className="text-white font-mono text-xs">{userStakingInfo.staked_apt} octas</span>
+                          <span className="text-gray-400">
+                            Staked APT (Raw)
+                          </span>
+                          <span className="text-white font-mono text-xs">
+                            {userStakingInfo.staked_apt} octas
+                          </span>
                         </div>
                         <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg">
-                          <span className="text-gray-400">Staked APT (Formatted)</span>
-                          <span className="text-white">{(Number(userStakingInfo.staked_apt) / 100_000_000).toFixed(4)} APT</span>
+                          <span className="text-gray-400">
+                            Staked APT (Formatted)
+                          </span>
+                          <span className="text-white">
+                            {(
+                              Number(userStakingInfo.staked_apt) / 100_000_000
+                            ).toFixed(4)}{" "}
+                            APT
+                          </span>
                         </div>
                         <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg">
-                          <span className="text-gray-400">Total DAO Staked</span>
-                          <span className="text-white">{(Number(userStakingInfo.total_dao_staked) / 100_000_000).toFixed(4)} APT</span>
+                          <span className="text-gray-400">
+                            Total DAO Staked
+                          </span>
+                          <span className="text-white">
+                            {(
+                              Number(userStakingInfo.total_dao_staked) /
+                              100_000_000
+                            ).toFixed(4)}{" "}
+                            APT
+                          </span>
                         </div>
                       </div>
                     </div>
 
                     {/* Right Column - Voting Power Details */}
                     <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-white mb-3">Voting Power Calculation</h3>
+                      <h3 className="text-lg font-semibold text-white mb-3">
+                        Voting Power Calculation
+                      </h3>
                       <div className="space-y-3">
                         <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg">
-                          <span className="text-gray-400">Calculated Power (Raw)</span>
-                          <span className="text-white font-mono">{userStakingInfo.calculated_voting_power} bp</span>
+                          <span className="text-gray-400">
+                            Calculated Power (Raw)
+                          </span>
+                          <span className="text-white font-mono">
+                            {userStakingInfo.calculated_voting_power} bp
+                          </span>
                         </div>
                         <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg">
                           <span className="text-gray-400">Reserved Power</span>
-                          <span className="text-white">{(Number(userStakingInfo.reserved_power) / 100).toFixed(2)} bp</span>
+                          <span className="text-white">
+                            {(
+                              Number(userStakingInfo.reserved_power) / 100
+                            ).toFixed(2)}{" "}
+                            bp
+                          </span>
                         </div>
                         <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg">
                           <span className="text-gray-400">Staked Power</span>
-                          <span className="text-white">{(Number(userStakingInfo.staked_power) / 100).toFixed(2)} bp</span>
+                          <span className="text-white">
+                            {(
+                              Number(userStakingInfo.staked_power) / 100
+                            ).toFixed(2)}{" "}
+                            bp
+                          </span>
                         </div>
                         <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg">
-                          <span className="text-gray-400">Voting Percentage</span>
-                          <span className="text-white">{(Number(userStakingInfo.voting_percentage) / 100).toFixed(6)}%</span>
+                          <span className="text-gray-400">
+                            Voting Percentage
+                          </span>
+                          <span className="text-white">
+                            {(
+                              Number(userStakingInfo.voting_percentage) / 100
+                            ).toFixed(6)}
+                            %
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -999,10 +1163,14 @@ export default function ProposalsPage() {
 
                   {/* Smart Contract Integration Info */}
                   <div className="p-4 bg-red-900/10 rounded-lg border border-red-900/20">
-                    <h3 className="text-lg font-semibold text-white mb-3">Blockchain Integration Status</h3>
+                    <h3 className="text-lg font-semibold text-white mb-3">
+                      Blockchain Integration Status
+                    </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div>
-                        <div className="text-gray-400 mb-2">Contract Functions Used</div>
+                        <div className="text-gray-400 mb-2">
+                          Contract Functions Used
+                        </div>
                         <div className="text-white font-mono text-xs">
                           <div>• get_user_staking_info()</div>
                           <div>• get_user_voting_power_breakdown()</div>
@@ -1012,8 +1180,13 @@ export default function ProposalsPage() {
                         </div>
                       </div>
                       <div>
-                        <div className="text-gray-400 mb-2">Connected Wallet</div>
-                        <div className="text-white font-mono text-xs">{account?.address.toString().slice(0, 10)}...{account?.address.toString().slice(-8)}</div>
+                        <div className="text-gray-400 mb-2">
+                          Connected Wallet
+                        </div>
+                        <div className="text-white font-mono text-xs">
+                          {account?.address.toString().slice(0, 10)}...
+                          {account?.address.toString().slice(-8)}
+                        </div>
                       </div>
                     </div>
                   </div>

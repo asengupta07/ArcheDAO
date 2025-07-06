@@ -3,10 +3,15 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Aurora } from "@/components/aurora";
+
+import { GradientBackground } from "@/components/ui/gradient-background";
 import { toast } from "@/hooks/use-toast";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Aptos, AptosConfig, Network as AptosNetwork } from "@aptos-labs/ts-sdk";
+import {
+  Aptos,
+  AptosConfig,
+  Network as AptosNetwork,
+} from "@aptos-labs/ts-sdk";
 import { CONTRACT_FUNCTIONS } from "@/config/contract";
 
 export default function InvitePage() {
@@ -76,8 +81,8 @@ export default function InvitePage() {
       });
 
       // Wait for transaction to be confirmed
-      await aptosClient.waitForTransaction({ 
-        transactionHash: response.hash 
+      await aptosClient.waitForTransaction({
+        transactionHash: response.hash,
       });
 
       toast({
@@ -90,7 +95,7 @@ export default function InvitePage() {
     } catch (error) {
       console.error("Error processing invite:", error);
       let errorMessage = "The invite code is invalid or has expired.";
-      
+
       if (error instanceof Error) {
         if (error.message.includes("E_DAO_NOT_FOUND")) {
           errorMessage = "DAO not found. Please check your invite code.";
@@ -100,7 +105,7 @@ export default function InvitePage() {
           errorMessage = "You are already a member of this DAO.";
         }
       }
-      
+
       toast({
         title: "Failed to Join DAO",
         description: errorMessage,
@@ -115,12 +120,7 @@ export default function InvitePage() {
     <div className="relative min-h-screen overflow-hidden">
       {/* Aurora Background */}
       <div className="fixed inset-0 z-0">
-        <Aurora
-          colorStops={["#8B0000", "#660000", "#8B0000"]}
-          amplitude={1.2}
-          speed={0.3}
-          blend={0.8}
-        />
+        <GradientBackground />
       </div>
 
       {/* Content */}
@@ -142,7 +142,8 @@ export default function InvitePage() {
         {connected && account && (
           <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-4 mb-6 max-w-md w-full text-center">
             <p className="text-green-300 text-sm">
-              Connected: {account.address.toString().slice(0, 6)}...{account.address.toString().slice(-4)}
+              Connected: {account.address.toString().slice(0, 6)}...
+              {account.address.toString().slice(-4)}
             </p>
           </div>
         )}
@@ -181,7 +182,7 @@ export default function InvitePage() {
         {/* Help Text */}
         <div className="mt-8 text-center max-w-md">
           <p className="text-gray-400 text-sm">
-            Enter the invitation code provided by the DAO to join as a member. 
+            Enter the invitation code provided by the DAO to join as a member.
             You'll receive 100 initial voting power tokens upon joining.
           </p>
         </div>

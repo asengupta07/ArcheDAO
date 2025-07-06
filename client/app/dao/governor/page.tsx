@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, JSXElementConstructor,  ReactElement, ReactNode, ReactPortal } from "react";
+import {
+  useState,
+  useEffect,
+  JSXElementConstructor,
+  ReactElement,
+  ReactNode,
+  ReactPortal,
+} from "react";
 import {
   Card,
   CardContent,
@@ -20,7 +27,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import InViewMotion from "@/components/InViewMotion";
-import { Aurora } from "@/components/aurora";
+
+import { GradientBackground } from "@/components/ui/gradient-background";
 import {
   Activity,
   Users,
@@ -60,23 +68,27 @@ import {
 } from "lucide-react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { toast } from "@/hooks/use-toast";
-import { Aptos, AptosConfig, Network as AptosNetwork } from "@aptos-labs/ts-sdk";
-import { 
-  CONTRACT_CONFIG, 
-  USER_TYPES, 
-  CONTRACT_FUNCTIONS, 
-  RESOURCE_TYPES, 
+import {
+  Aptos,
+  AptosConfig,
+  Network as AptosNetwork,
+} from "@aptos-labs/ts-sdk";
+import {
+  CONTRACT_CONFIG,
+  USER_TYPES,
+  CONTRACT_FUNCTIONS,
+  RESOURCE_TYPES,
   PROPOSAL_STATUS,
   TASK_STATUS,
   VOTE_TYPES,
-  getUserTypeLabel, 
+  getUserTypeLabel,
   getUserTypeColor,
   getProposalStatusLabel,
   getProposalStatusColor,
   getTaskStatusLabel,
   getTaskStatusColor,
   getVoteTypeLabel,
-  getVoteTypeColor
+  getVoteTypeColor,
 } from "../../../config/contract";
 
 interface UserProfile {
@@ -164,7 +176,9 @@ export default function GovernancePage() {
   const { account, connected, signAndSubmitTransaction } = useWallet();
   const [loading, setLoading] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [userEcosystem, setUserEcosystem] = useState<UserDAOEcosystem | null>(null);
+  const [userEcosystem, setUserEcosystem] = useState<UserDAOEcosystem | null>(
+    null
+  );
   const [selectedDAO, setSelectedDAO] = useState<DAOInfo | null>(null);
   const [inviteLink, setInviteLink] = useState("");
   const [showCopied, setShowCopied] = useState(false);
@@ -213,7 +227,9 @@ export default function GovernancePage() {
         return false; // Profile exists, no need to auto-join
       } catch (error) {
         // Profile doesn't exist, check if user is a governor in any DAO
-        console.log("No profile found, checking if user is a governor in any DAO...");
+        console.log(
+          "No profile found, checking if user is a governor in any DAO..."
+        );
       }
 
       // Get all DAOs and check if user is a governor in any of them
@@ -222,7 +238,7 @@ export default function GovernancePage() {
           accountAddress: CONTRACT_CONFIG.MODULE_ADDRESS,
           resourceType: RESOURCE_TYPES.DAO_REGISTRY,
         });
-        
+
         // For now, we'll try to get DAO info for common DAO IDs
         // In a real implementation, you'd iterate through all DAOs
         for (let daoId = 1; daoId <= 10; daoId++) {
@@ -233,19 +249,21 @@ export default function GovernancePage() {
                 functionArguments: [daoId.toString()],
               },
             });
-            
+
             if (daoData && daoData[0]) {
               const dao = daoData[0] as DAOInfo;
               // Check if user is a governor or creator of this DAO
-              if (dao.governors.includes(account.address.toString()) || 
-                  dao.creator === account.address.toString()) {
+              if (
+                dao.governors.includes(account.address.toString()) ||
+                dao.creator === account.address.toString()
+              ) {
                 // User is a governor, auto-join this DAO
                 setAutoJoining(true);
                 toast({
                   title: "Auto-joining DAO",
                   description: `You are a governor of ${dao.name}. Auto-joining to create your profile...`,
                 });
-                
+
                 try {
                   const response = await signAndSubmitTransaction({
                     sender: account.address,
@@ -255,22 +273,23 @@ export default function GovernancePage() {
                     },
                   });
 
-                  await aptosClient.waitForTransaction({ 
-                    transactionHash: response.hash 
+                  await aptosClient.waitForTransaction({
+                    transactionHash: response.hash,
                   });
 
                   toast({
                     title: "Successfully Joined DAO",
                     description: `You have been automatically added to ${dao.name} as a governor.`,
                   });
-                  
+
                   setAutoJoining(false);
                   return true; // Successfully joined
                 } catch (joinError) {
                   console.error("Error auto-joining DAO:", joinError);
                   toast({
                     title: "Auto-join Failed",
-                    description: "Failed to automatically join the DAO. Please try joining manually.",
+                    description:
+                      "Failed to automatically join the DAO. Please try joining manually.",
                     variant: "destructive",
                   });
                   setAutoJoining(false);
@@ -286,7 +305,7 @@ export default function GovernancePage() {
       } catch (registryError) {
         console.error("Error checking DAO registry:", registryError);
       }
-      
+
       return false; // No governor role found
     } catch (error) {
       console.error("Error in checkAndAutoJoinDAO:", error);
@@ -300,7 +319,7 @@ export default function GovernancePage() {
 
     try {
       setLoading(true);
-      
+
       // Get user profile
       try {
         const profileResource = await aptosClient.getAccountResource({
@@ -309,11 +328,13 @@ export default function GovernancePage() {
         });
         setUserProfile(profileResource.data as UserProfile);
       } catch (error) {
-        console.log("User profile not found, checking if user is a governor...");
-        
+        console.log(
+          "User profile not found, checking if user is a governor..."
+        );
+
         // Check if user is a governor and auto-join if needed
         const autoJoined = await checkAndAutoJoinDAO();
-        
+
         if (autoJoined) {
           // Retry loading user data after auto-joining
           setTimeout(() => loadUserData(), 2000);
@@ -321,7 +342,8 @@ export default function GovernancePage() {
         } else {
           toast({
             title: "User Not Registered",
-            description: "You need to join a DAO first to access this dashboard.",
+            description:
+              "You need to join a DAO first to access this dashboard.",
             variant: "destructive",
           });
           setLoading(false);
@@ -337,13 +359,13 @@ export default function GovernancePage() {
             functionArguments: [account.address.toString()],
           },
         });
-        
+
         if (!ecosystemData || !ecosystemData[0]) {
           throw new Error("No ecosystem data returned");
         }
-        
+
         setUserEcosystem(ecosystemData[0] as UserDAOEcosystem);
-        
+
         // Select the first DAO where user is a governor or creator
         const userEcosystemData = ecosystemData[0] as UserDAOEcosystem;
         if (!userEcosystemData.daos || userEcosystemData.daos.length === 0) {
@@ -355,15 +377,17 @@ export default function GovernancePage() {
           setLoading(false);
           return;
         }
-        
+
         const governorDAOs = userEcosystemData.daos.filter(
-          (dao: any) => dao.user_membership && (dao.user_membership.is_governor || dao.user_membership.is_creator)
+          (dao: any) =>
+            dao.user_membership &&
+            (dao.user_membership.is_governor || dao.user_membership.is_creator)
         );
-        
+
         if (governorDAOs.length > 0) {
           const selectedDAOInfo = governorDAOs[0].dao_info;
           setSelectedDAO(selectedDAOInfo);
-          
+
           // Load detailed proposals and tasks using specific contract functions
           await loadDAOProposalsAndTasks(selectedDAOInfo.id);
         }
@@ -371,7 +395,10 @@ export default function GovernancePage() {
         console.error("Error loading user ecosystem:", error);
         toast({
           title: "Error Loading DAO Data",
-          description: error instanceof Error ? error.message : "Failed to load DAO ecosystem data.",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Failed to load DAO ecosystem data.",
           variant: "destructive",
         });
       }
@@ -399,7 +426,7 @@ export default function GovernancePage() {
             functionArguments: [daoId.toString()],
           },
         });
-        
+
         if (proposalsData && proposalsData[0]) {
           setProposals(proposalsData[0] as ProposalData[]);
         } else {
@@ -418,7 +445,7 @@ export default function GovernancePage() {
             functionArguments: [daoId.toString()],
           },
         });
-        
+
         if (tasksData && tasksData[0]) {
           setTasks(tasksData[0] as TaskData[]);
         } else {
@@ -455,7 +482,7 @@ export default function GovernancePage() {
       const uniqueCode = Math.random().toString(36).substring(2, 15);
       const newLink = `${window.location.origin}/invite?code=${selectedDAO.dao_code}&dao_id=${selectedDAO.id}`;
       setInviteLink(newLink);
-      
+
       toast({
         title: "Invite Link Generated",
         description: `Share this link for users to join ${selectedDAO.name}`,
@@ -492,15 +519,15 @@ export default function GovernancePage() {
         },
       });
 
-      await aptosClient?.waitForTransaction({ 
-        transactionHash: response.hash 
+      await aptosClient?.waitForTransaction({
+        transactionHash: response.hash,
       });
 
       toast({
         title: "Member Promoted",
         description: `Successfully promoted ${newGovernorAddress} to governor.`,
       });
-      
+
       setNewGovernorAddress("");
       await refreshData();
     } catch (error) {
@@ -527,7 +554,7 @@ export default function GovernancePage() {
     }
 
     try {
-      setPromotingMembers(prev => [...prev, memberAddress]);
+      setPromotingMembers((prev) => [...prev, memberAddress]);
 
       const response = await signAndSubmitTransaction({
         sender: account.address,
@@ -537,15 +564,17 @@ export default function GovernancePage() {
         },
       });
 
-      await aptosClient?.waitForTransaction({ 
-        transactionHash: response.hash 
+      await aptosClient?.waitForTransaction({
+        transactionHash: response.hash,
       });
 
       toast({
         title: "Member Promoted",
-        description: `Successfully promoted ${memberAddress.toString().slice(0, 8)}...${memberAddress.toString().slice(-8)} to governor.`,
+        description: `Successfully promoted ${memberAddress
+          .toString()
+          .slice(0, 8)}...${memberAddress.toString().slice(-8)} to governor.`,
       });
-      
+
       await refreshData();
     } catch (error) {
       console.error("Error promoting member:", error);
@@ -555,16 +584,21 @@ export default function GovernancePage() {
         variant: "destructive",
       });
     } finally {
-      setPromotingMembers(prev => prev.filter(addr => addr !== memberAddress));
+      setPromotingMembers((prev) =>
+        prev.filter((addr) => addr !== memberAddress)
+      );
     }
   };
 
   const promoteAllMembersToGovernors = async () => {
     if (!selectedDAO || !account) return;
 
-    const membersToPromote = selectedDAO.members?.filter(member => 
-      !selectedDAO.governors?.includes(member) && member !== selectedDAO.creator
-    ) || [];
+    const membersToPromote =
+      selectedDAO.members?.filter(
+        (member) =>
+          !selectedDAO.governors?.includes(member) &&
+          member !== selectedDAO.creator
+      ) || [];
 
     if (membersToPromote.length === 0) {
       toast({
@@ -589,24 +623,30 @@ export default function GovernancePage() {
             },
           });
 
-          await aptosClient?.waitForTransaction({ 
-            transactionHash: response.hash 
+          await aptosClient?.waitForTransaction({
+            transactionHash: response.hash,
           });
 
           toast({
             title: "Member Promoted",
-            description: `Promoted ${memberAddress.toString().slice(0, 8)}...${memberAddress.toString().slice(-8)} to governor.`,
+            description: `Promoted ${memberAddress
+              .toString()
+              .slice(0, 8)}...${memberAddress
+              .toString()
+              .slice(-8)} to governor.`,
           });
         } catch (error) {
           console.error(`Error promoting ${memberAddress}:`, error);
           toast({
             title: "Promotion Failed",
-            description: `Failed to promote ${memberAddress.toString().slice(0, 8)}...${memberAddress.toString().slice(-8)}.`,
+            description: `Failed to promote ${memberAddress
+              .toString()
+              .slice(0, 8)}...${memberAddress.toString().slice(-8)}.`,
             variant: "destructive",
           });
         }
       }
-      
+
       await refreshData();
     } catch (error) {
       console.error("Error promoting all members:", error);
@@ -632,15 +672,15 @@ export default function GovernancePage() {
         },
       });
 
-      await aptosClient?.waitForTransaction({ 
-        transactionHash: response.hash 
+      await aptosClient?.waitForTransaction({
+        transactionHash: response.hash,
       });
 
       toast({
         title: "Governor Demoted",
         description: `Successfully demoted ${governorAddress} from governor.`,
       });
-      
+
       await refreshData();
     } catch (error) {
       console.error("Error demoting governor:", error);
@@ -664,15 +704,15 @@ export default function GovernancePage() {
         },
       });
 
-      await aptosClient?.waitForTransaction({ 
-        transactionHash: response.hash 
+      await aptosClient?.waitForTransaction({
+        transactionHash: response.hash,
       });
 
       toast({
         title: "Ownership Transferred",
         description: `Successfully transferred ownership to ${newOwnerAddress}.`,
       });
-      
+
       setNewOwnerAddress("");
       await refreshData();
     } catch (error) {
@@ -691,20 +731,21 @@ export default function GovernancePage() {
     await loadDAOProposalsAndTasks(dao.dao_info.id);
   };
 
-  const isDAOCreator = selectedDAO && account && selectedDAO.creator === account.address.toString();
-  const isGovernor = selectedDAO && account && selectedDAO.governors.includes(account.address.toString());
+  const isDAOCreator =
+    selectedDAO &&
+    account &&
+    selectedDAO.creator === account.address.toString();
+  const isGovernor =
+    selectedDAO &&
+    account &&
+    selectedDAO.governors.includes(account.address.toString());
   const hasAccess = isDAOCreator || isGovernor;
 
   if (!connected) {
     return (
       <div className="min-h-screen relative">
         <div className="fixed inset-0 z-0">
-          <Aurora
-            colorStops={["#8B0000", "#660000", "#8B0000"]}
-            amplitude={1.2}
-            speed={0.3}
-            blend={0.8}
-          />
+          <GradientBackground />
         </div>
         <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
           <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
@@ -731,12 +772,7 @@ export default function GovernancePage() {
     return (
       <div className="min-h-screen relative">
         <div className="fixed inset-0 z-0">
-          <Aurora
-            colorStops={["#8B0000", "#660000", "#8B0000"]}
-            amplitude={1.2}
-            speed={0.3}
-            blend={0.8}
-          />
+          <GradientBackground />
         </div>
         <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
           <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
@@ -763,12 +799,7 @@ export default function GovernancePage() {
     return (
       <div className="min-h-screen relative">
         <div className="fixed inset-0 z-0">
-          <Aurora
-            colorStops={["#8B0000", "#660000", "#8B0000"]}
-            amplitude={1.2}
-            speed={0.3}
-            blend={0.8}
-          />
+          <GradientBackground />
         </div>
         <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
           <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
@@ -777,16 +808,20 @@ export default function GovernancePage() {
                 Access Denied
               </CardTitle>
               <CardDescription className="text-gray-300">
-                You need to be a Governor or DAO Creator to access this dashboard.
+                You need to be a Governor or DAO Creator to access this
+                dashboard.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="text-sm text-gray-400">
-                  Your current role: {userProfile ? getUserTypeLabel(userProfile.user_type) : "Unknown"}
+                  Your current role:{" "}
+                  {userProfile
+                    ? getUserTypeLabel(userProfile.user_type)
+                    : "Unknown"}
                 </div>
-                <Button 
-                  onClick={() => window.location.href = '/dao/dashboard'}
+                <Button
+                  onClick={() => (window.location.href = "/dao/dashboard")}
                   className="bg-gradient-to-r from-red-900 to-red-700"
                 >
                   Go to Dashboard
@@ -803,12 +838,7 @@ export default function GovernancePage() {
     return (
       <div className="min-h-screen relative">
         <div className="fixed inset-0 z-0">
-          <Aurora
-            colorStops={["#8B0000", "#660000", "#8B0000"]}
-            amplitude={1.2}
-            speed={0.3}
-            blend={0.8}
-          />
+          <GradientBackground />
         </div>
         <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
           <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
@@ -821,8 +851,8 @@ export default function GovernancePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button 
-                onClick={() => window.location.href = '/dao/dashboard'}
+              <Button
+                onClick={() => (window.location.href = "/dao/dashboard")}
                 className="bg-gradient-to-r from-red-900 to-red-700"
               >
                 Go to Dashboard
@@ -837,12 +867,7 @@ export default function GovernancePage() {
   return (
     <div className="min-h-screen relative">
       <div className="fixed inset-0 z-0">
-        <Aurora
-          colorStops={["#8B0000", "#660000", "#8B0000"]}
-          amplitude={1.2}
-          speed={0.3}
-          blend={0.8}
-        />
+        <GradientBackground />
       </div>
 
       <div className="relative z-10 container mx-auto px-4 py-[8rem] mt-6">
@@ -850,7 +875,9 @@ export default function GovernancePage() {
         <div className="flex justify-between items-start mb-12">
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-4">
-              <h1 className="text-4xl font-bold text-white">Governor Dashboard</h1>
+              <h1 className="text-4xl font-bold text-white">
+                Governor Dashboard
+              </h1>
               <Button
                 onClick={refreshData}
                 disabled={refreshing}
@@ -866,7 +893,9 @@ export default function GovernancePage() {
               </Button>
             </div>
             <p className="text-gray-400">
-              {selectedDAO ? `Managing ${selectedDAO.name}` : "Select a DAO to manage"}
+              {selectedDAO
+                ? `Managing ${selectedDAO.name}`
+                : "Select a DAO to manage"}
             </p>
           </div>
           <div className="flex flex-col items-end gap-3">
@@ -883,7 +912,8 @@ export default function GovernancePage() {
             )}
             <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-lg">
               <span className="text-red-200/80 font-mono text-sm">
-                {account?.address?.toString().toString().slice(0, 6)}...{account?.address?.toString().toString().slice(-4)}
+                {account?.address?.toString().toString().slice(0, 6)}...
+                {account?.address?.toString().toString().slice(-4)}
               </span>
             </div>
           </div>
@@ -894,12 +924,18 @@ export default function GovernancePage() {
           <div className="mb-8">
             <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
               <CardHeader>
-                <CardTitle className="text-xl text-white">Select DAO to Manage</CardTitle>
+                <CardTitle className="text-xl text-white">
+                  Select DAO to Manage
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {userEcosystem.daos
-                    .filter((dao: any) => dao.user_membership.is_governor || dao.user_membership.is_creator)
+                    .filter(
+                      (dao: any) =>
+                        dao.user_membership.is_governor ||
+                        dao.user_membership.is_creator
+                    )
                     .map((dao: any) => (
                       <div
                         key={dao.dao_info.id}
@@ -915,9 +951,13 @@ export default function GovernancePage() {
                             <Crown className="w-5 h-5 text-white" />
                           </div>
                           <div>
-                            <h3 className="text-white font-medium">{dao.dao_info.name}</h3>
+                            <h3 className="text-white font-medium">
+                              {dao.dao_info.name}
+                            </h3>
                             <p className="text-sm text-gray-400">
-                              {dao.user_membership.is_creator ? "Creator" : "Governor"}
+                              {dao.user_membership.is_creator
+                                ? "Creator"
+                                : "Governor"}
                             </p>
                           </div>
                         </div>
@@ -944,47 +984,79 @@ export default function GovernancePage() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                     <div className="text-center">
                       <p className="text-sm text-gray-400">DAO Status</p>
-                      <Badge className={selectedDAO.is_active ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}>
+                      <Badge
+                        className={
+                          selectedDAO.is_active
+                            ? "bg-green-500/20 text-green-400"
+                            : "bg-red-500/20 text-red-400"
+                        }
+                      >
                         {selectedDAO.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </div>
                     <div className="text-center">
                       <p className="text-sm text-gray-400">Created</p>
                       <p className="text-white font-medium">
-                        {selectedDAO.created_at ? new Date(selectedDAO.created_at * 1000).toLocaleDateString() : 'Unknown'}
+                        {selectedDAO.created_at
+                          ? new Date(
+                              selectedDAO.created_at * 1000
+                            ).toLocaleDateString()
+                          : "Unknown"}
                       </p>
                     </div>
                     <div className="text-center">
                       <p className="text-sm text-gray-400">Governance Token</p>
                       <p className="text-white font-mono text-sm">
-                        {selectedDAO.governance_token ? 
-                          `${selectedDAO.governance_token.toString().slice(0, 8)}...${selectedDAO.governance_token.toString().slice(-8)}` : 
-                          'N/A'
-                        }
+                        {selectedDAO.governance_token
+                          ? `${selectedDAO.governance_token
+                              .toString()
+                              .slice(0, 8)}...${selectedDAO.governance_token
+                              .toString()
+                              .slice(-8)}`
+                          : "N/A"}
                       </p>
                     </div>
                     <div className="text-center">
                       <p className="text-sm text-gray-400">Total Supply</p>
                       <p className="text-white font-medium">
-                        {selectedDAO.total_supply ? selectedDAO.total_supply.toLocaleString() : '0'} tokens
+                        {selectedDAO.total_supply
+                          ? selectedDAO.total_supply.toLocaleString()
+                          : "0"}{" "}
+                        tokens
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="mt-6 pt-6 border-t border-white/10">
-                    <h4 className="text-white font-medium mb-4">Governance Settings</h4>
+                    <h4 className="text-white font-medium mb-4">
+                      Governance Settings
+                    </h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-400">Voting Period:</span>
-                        <span className="text-white">{selectedDAO.voting_period ? Math.floor(selectedDAO.voting_period / 86400) : 0} days</span>
+                        <span className="text-white">
+                          {selectedDAO.voting_period
+                            ? Math.floor(selectedDAO.voting_period / 86400)
+                            : 0}{" "}
+                          days
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Execution Delay:</span>
-                        <span className="text-white">{selectedDAO.execution_delay ? Math.floor(selectedDAO.execution_delay / 3600) : 0} hours</span>
+                        <span className="text-white">
+                          {selectedDAO.execution_delay
+                            ? Math.floor(selectedDAO.execution_delay / 3600)
+                            : 0}{" "}
+                          hours
+                        </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Proposal Threshold:</span>
-                        <span className="text-white">{selectedDAO.minimum_proposal_threshold || 0} tokens</span>
+                        <span className="text-gray-400">
+                          Proposal Threshold:
+                        </span>
+                        <span className="text-white">
+                          {selectedDAO.minimum_proposal_threshold || 0} tokens
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1020,7 +1092,9 @@ export default function GovernancePage() {
                         <Wallet className="w-6 h-6 text-white" />
                       </div>
                       <div>
-                        <p className="text-sm text-gray-400">Treasury Balance</p>
+                        <p className="text-sm text-gray-400">
+                          Treasury Balance
+                        </p>
                         <p className="text-2xl font-bold text-white">
                           {selectedDAO.treasury_balance || 0} APT
                         </p>
@@ -1099,7 +1173,11 @@ export default function GovernancePage() {
                           onClick={copyToClipboard}
                           className="bg-gradient-to-r from-red-900 to-red-700"
                         >
-                          {showCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                          {showCopied ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
                         </Button>
                       </div>
                     )}
@@ -1124,7 +1202,9 @@ export default function GovernancePage() {
                       <div className="flex gap-2">
                         <Input
                           value={newGovernorAddress}
-                          onChange={(e) => setNewGovernorAddress(e.target.value)}
+                          onChange={(e) =>
+                            setNewGovernorAddress(e.target.value)
+                          }
                           placeholder="Member address to promote"
                           className="bg-white/5 border-yellow-900/20 text-white"
                         />
@@ -1155,13 +1235,17 @@ export default function GovernancePage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <p className="text-gray-400 text-sm">
-                        Manage multiple members at once or set automatic promotion rules
+                        Manage multiple members at once or set automatic
+                        promotion rules
                       </p>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Button
                           onClick={promoteAllMembersToGovernors}
-                          disabled={promotingMembers.length > 0 || !selectedDAO?.members?.length}
+                          disabled={
+                            promotingMembers.length > 0 ||
+                            !selectedDAO?.members?.length
+                          }
                           className="bg-gradient-to-r from-blue-900 to-blue-700 relative"
                         >
                           {promotingMembers.length > 0 ? (
@@ -1176,7 +1260,7 @@ export default function GovernancePage() {
                             </>
                           )}
                         </Button>
-                        
+
                         <Button
                           onClick={refreshData}
                           className="bg-gradient-to-r from-gray-900 to-gray-700"
@@ -1185,30 +1269,40 @@ export default function GovernancePage() {
                           Refresh Member List
                         </Button>
                       </div>
-                      
+
                       <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
                         <div>
-                          <p className="text-white font-medium">Auto-promote New Members</p>
-                          <p className="text-gray-400 text-sm">Automatically promote new members to governors</p>
+                          <p className="text-white font-medium">
+                            Auto-promote New Members
+                          </p>
+                          <p className="text-gray-400 text-sm">
+                            Automatically promote new members to governors
+                          </p>
                         </div>
                         <Button
-                          onClick={() => setAutoPromoteNewMembers(!autoPromoteNewMembers)}
-                          variant={autoPromoteNewMembers ? "default" : "outline"}
-                          className={autoPromoteNewMembers ? 
-                            "bg-gradient-to-r from-green-900 to-green-700" : 
-                            "bg-white/10 border-white/20 text-white hover:bg-white/20"
+                          onClick={() =>
+                            setAutoPromoteNewMembers(!autoPromoteNewMembers)
+                          }
+                          variant={
+                            autoPromoteNewMembers ? "default" : "outline"
+                          }
+                          className={
+                            autoPromoteNewMembers
+                              ? "bg-gradient-to-r from-green-900 to-green-700"
+                              : "bg-white/10 border-white/20 text-white hover:bg-white/20"
                           }
                         >
                           {autoPromoteNewMembers ? "Enabled" : "Disabled"}
                         </Button>
                       </div>
-                      
+
                       <div className="text-sm text-gray-400">
-                        Regular members that can be promoted: {
-                          selectedDAO?.members?.filter(member => 
-                            !selectedDAO.governors?.includes(member) && member !== selectedDAO.creator
-                          )?.length || 0
-                        }
+                        Regular members that can be promoted:{" "}
+                        {selectedDAO?.members?.filter(
+                          (member) =>
+                            !selectedDAO.governors?.includes(member) &&
+                            member !== selectedDAO.creator
+                        )?.length || 0}
                       </div>
                     </CardContent>
                   </Card>
@@ -1262,15 +1356,25 @@ export default function GovernancePage() {
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-400">Voting Period:</span>
-                          <span className="text-white">{selectedDAO.voting_period}s</span>
+                          <span className="text-white">
+                            {selectedDAO.voting_period}s
+                          </span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Execution Delay:</span>
-                          <span className="text-white">{selectedDAO.execution_delay}s</span>
+                          <span className="text-gray-400">
+                            Execution Delay:
+                          </span>
+                          <span className="text-white">
+                            {selectedDAO.execution_delay}s
+                          </span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Proposal Threshold:</span>
-                          <span className="text-white">{selectedDAO.minimum_proposal_threshold}</span>
+                          <span className="text-gray-400">
+                            Proposal Threshold:
+                          </span>
+                          <span className="text-white">
+                            {selectedDAO.minimum_proposal_threshold}
+                          </span>
                         </div>
                       </div>
                     </CardContent>
@@ -1296,12 +1400,27 @@ export default function GovernancePage() {
                         className="flex items-center justify-between p-4 bg-white/5 rounded-lg"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-gradient-to-br from-red-900 to-red-700">
-                            <Crown className="w-4 h-4 text-white" />
+                          <div
+                            className={`p-2 rounded-lg ${
+                              governor === selectedDAO.creator
+                                ? "bg-gradient-to-br from-yellow-900 to-yellow-700"
+                                : governor === selectedDAO.creator
+                                ? "bg-gradient-to-br from-red-900 to-red-700"
+                                : "bg-gradient-to-br from-blue-900 to-blue-700"
+                            }`}
+                          >
+                            {governor === selectedDAO.creator ? (
+                              <Star className="w-4 h-4 text-white" />
+                            ) : governor === selectedDAO.creator ? (
+                              <Crown className="w-4 h-4 text-white" />
+                            ) : (
+                              <Users className="w-4 h-4 text-white" />
+                            )}
                           </div>
                           <div>
                             <p className="text-white font-mono text-sm">
-                              {governor.toString().slice(0, 8)}...{governor.toString().slice(-8)}
+                              {governor.toString().slice(0, 12)}...
+                              {governor.toString().slice(-12)}
                             </p>
                             <div className="flex items-center gap-2 mt-1">
                               {governor === selectedDAO.creator && (
@@ -1309,25 +1428,74 @@ export default function GovernancePage() {
                                   Creator
                                 </Badge>
                               )}
-                              <Badge className="bg-red-500/20 text-red-400 text-xs">
-                                Governor
-                              </Badge>
+                              {governor === selectedDAO.creator && (
+                                <Badge className="bg-red-500/20 text-red-400 text-xs">
+                                  Governor
+                                </Badge>
+                              )}
+                              {!governor && !selectedDAO.creator && (
+                                <Badge className="bg-blue-500/20 text-blue-400 text-xs">
+                                  Member
+                                </Badge>
+                              )}
                             </div>
                           </div>
                         </div>
-                        {isDAOCreator && governor !== selectedDAO.creator && (
-                          <Button
-                            onClick={() => demoteGovernor(governor)}
-                            size="sm"
-                            variant="destructive"
-                            className="bg-red-600/20 hover:bg-red-600/30"
-                          >
-                            <UserMinus className="w-4 h-4 mr-1" />
-                            Demote
-                          </Button>
+
+                        {/* Action buttons for DAO Creator */}
+                        {isDAOCreator && (
+                          <div className="flex items-center gap-2">
+                            {!governor && !selectedDAO.creator && (
+                              <Button
+                                onClick={() =>
+                                  promoteMemberToGovernor(governor)
+                                }
+                                disabled={promotingMembers.includes(governor)}
+                                size="sm"
+                                className="bg-gradient-to-r from-green-900 to-green-700 hover:from-green-800 hover:to-green-600"
+                              >
+                                {promotingMembers.includes(governor) ? (
+                                  <>
+                                    <div className="animate-spin h-3 w-3 border-2 border-white/30 border-t-white rounded-full mr-1"></div>
+                                    Promoting...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Crown className="w-3 h-3 mr-1" />
+                                    Promote
+                                  </>
+                                )}
+                              </Button>
+                            )}
+
+                            {governor && !selectedDAO.creator && (
+                              <Button
+                                onClick={() => demoteGovernor(governor)}
+                                size="sm"
+                                variant="destructive"
+                                className="bg-red-600/20 hover:bg-red-600/30"
+                              >
+                                <UserMinus className="w-3 h-3 mr-1" />
+                                Demote
+                              </Button>
+                            )}
+
+                            {selectedDAO.creator && (
+                              <Badge className="bg-yellow-600/20 text-yellow-400 text-xs px-2 py-1">
+                                Owner
+                              </Badge>
+                            )}
+                          </div>
                         )}
                       </div>
                     ))}
+
+                    {(!selectedDAO.governors ||
+                      selectedDAO.governors.length === 0) && (
+                      <div className="text-center py-8">
+                        <p className="text-gray-400">No members found.</p>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -1346,212 +1514,367 @@ export default function GovernancePage() {
                   <div className="space-y-4">
                     {proposals.length === 0 ? (
                       <div className="text-center py-8">
-                        <p className="text-gray-400">No proposals found for this DAO.</p>
+                        <p className="text-gray-400">
+                          No proposals found for this DAO.
+                        </p>
                       </div>
                     ) : (
-                      proposals.slice(0, 10).map((proposal: any, index: React.Key | null | undefined) => (
-                        <div
-                          key={index}
-                          className="p-6 bg-white/5 rounded-lg border border-white/10"
-                        >
-                          {/* Proposal Header */}
-                          <div className="flex justify-between items-start mb-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
-                                <h4 className="text-white font-semibold text-lg">{proposal.title}</h4>
-                                <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
-                                  Proposal #{proposal.id}
-                                </Badge>
-                              </div>
-                              <p className="text-gray-300 text-sm">{proposal.description}</p>
-                            </div>
-                            <Badge className={getProposalStatusColor(proposal.state || proposal.status)}>
-                              {getProposalStatusLabel(proposal.state || proposal.status)}
-                            </Badge>
-                          </div>
-
-                          {/* Proposal Details Grid */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div className="p-3 bg-white/5 rounded-lg">
-                              <p className="text-xs text-gray-400 uppercase tracking-wide">DAO ID</p>
-                              <p className="text-white font-semibold">{proposal.dao_id}</p>
-                            </div>
-                            <div className="p-3 bg-white/5 rounded-lg">
-                              <p className="text-xs text-gray-400 uppercase tracking-wide">Total Votes</p>
-                              <p className="text-white font-semibold text-lg">
-                                {parseInt(proposal.total_votes || "0").toLocaleString()}
-                              </p>
-                            </div>
-                            <div className="p-3 bg-white/5 rounded-lg">
-                              <p className="text-xs text-gray-400 uppercase tracking-wide">Created</p>
-                              <p className="text-white font-semibold">
-                                {new Date(parseInt(proposal.created_at) * 1000).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Proposer Information */}
-                          <div className="mb-4 p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
-                            <p className="text-xs text-purple-400 uppercase tracking-wide">Proposed By</p>
-                            <p className="text-purple-200 font-mono text-sm">
-                              {proposal.proposer.slice(0, 12)}...{proposal.proposer.slice(-8)}
-                            </p>
-                          </div>
-
-                          {/* Voting Results */}
-                          <div className="mb-4 p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                            <p className="text-xs text-blue-400 uppercase tracking-wide mb-3">Voting Results</p>
-                            
-                            <div className="grid grid-cols-3 gap-4 mb-3">
-                              <div className="text-center">
-                                <p className="text-green-200 font-bold text-lg">
-                                  {parseInt(proposal.yes_votes || "0").toLocaleString()}
-                                </p>
-                                <p className="text-xs text-green-400">Yes Votes</p>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-red-200 font-bold text-lg">
-                                  {parseInt(proposal.no_votes || "0").toLocaleString()}
-                                </p>
-                                <p className="text-xs text-red-400">No Votes</p>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-gray-200 font-bold text-lg">
-                                  {parseInt(proposal.abstain_votes || "0").toLocaleString()}
-                                </p>
-                                <p className="text-xs text-gray-400">Abstain</p>
-                              </div>
-                            </div>
-
-                            {/* Voting Progress Bar */}
-                            <div className="mb-3">
-                              <div className="flex justify-between text-xs text-blue-400 mb-1">
-                                <span>Voting Distribution</span>
-                                <span>
-                                  Total: {parseInt(proposal.total_votes || "0").toLocaleString()} votes
-                                </span>
-                              </div>
-                              <div className="w-full flex rounded-full h-3 overflow-hidden">
-                                <div 
-                                  className="bg-green-500 transition-all duration-300"
-                                  style={{
-                                    width: `${parseInt(proposal.total_votes) > 0 ? (parseInt(proposal.yes_votes || "0") / parseInt(proposal.total_votes)) * 100 : 0}%`
-                                  }}
-                                />
-                                <div 
-                                  className="bg-red-500 transition-all duration-300"
-                                  style={{
-                                    width: `${parseInt(proposal.total_votes) > 0 ? (parseInt(proposal.no_votes || "0") / parseInt(proposal.total_votes)) * 100 : 0}%`
-                                  }}
-                                />
-                                <div 
-                                  className="bg-gray-500 transition-all duration-300"
-                                  style={{
-                                    width: `${parseInt(proposal.total_votes) > 0 ? (parseInt(proposal.abstain_votes || "0") / parseInt(proposal.total_votes)) * 100 : 0}%`
-                                  }}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Voting Percentages */}
-                            <div className="grid grid-cols-3 gap-4 text-xs">
-                              <div className="text-center">
-                                <span className="text-green-300">
-                                  {parseInt(proposal.total_votes) > 0 ? 
-                                    Math.round((parseInt(proposal.yes_votes || "0") / parseInt(proposal.total_votes)) * 100) : 0}%
-                                </span>
-                              </div>
-                              <div className="text-center">
-                                <span className="text-red-300">
-                                  {parseInt(proposal.total_votes) > 0 ? 
-                                    Math.round((parseInt(proposal.no_votes || "0") / parseInt(proposal.total_votes)) * 100) : 0}%
-                                </span>
-                              </div>
-                              <div className="text-center">
-                                <span className="text-gray-300">
-                                  {parseInt(proposal.total_votes) > 0 ? 
-                                    Math.round((parseInt(proposal.abstain_votes || "0") / parseInt(proposal.total_votes)) * 100) : 0}%
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Timeline Information */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div className="p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
-                              <p className="text-xs text-yellow-400 uppercase tracking-wide">Start Time</p>
-                              <p className="text-yellow-200 text-sm">
-                                {new Date(parseInt(proposal.start_time) * 1000).toLocaleString()}
-                              </p>
-                            </div>
-                            <div className="p-3 bg-orange-500/10 rounded-lg border border-orange-500/20">
-                              <p className="text-xs text-orange-400 uppercase tracking-wide">End Time</p>
-                              <p className="text-orange-200 text-sm">
-                                {new Date(parseInt(proposal.end_time) * 1000).toLocaleString()}
-                              </p>
-                              <p className="text-xs text-orange-300 mt-1">
-                                {new Date(parseInt(proposal.end_time) * 1000) > new Date() ? 'Active' : 'Ended'}
-                              </p>
-                            </div>
-                            <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20">
-                              <p className="text-xs text-red-400 uppercase tracking-wide">Execution Time</p>
-                              <p className="text-red-200 text-sm">
-                                {new Date(parseInt(proposal.execution_time) * 1000).toLocaleString()}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* User Voting Status */}
-                          <div className="mb-4 p-3 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
-                            <p className="text-xs text-indigo-400 uppercase tracking-wide">Your Voting Status</p>
-                            <div className="flex items-center gap-4 mt-2">
-                              <div className="flex items-center gap-2">
-                                <Badge className={proposal.user_voted ? 
-                                  "bg-green-600/20 text-green-300 border-green-500/30" : 
-                                  "bg-gray-600/20 text-gray-300 border-gray-500/30"
-                                }>
-                                  {proposal.user_voted ? '✓ Voted' : '✗ Not Voted'}
-                                </Badge>
-                              </div>
-                              {proposal.user_voted && proposal.user_vote && proposal.user_vote.vec && proposal.user_vote.vec.length > 0 && (
-                                <div className="flex items-center gap-2">
-                                  <span className="text-indigo-300 text-sm">Your vote:</span>
-                                  <Badge className={
-                                    proposal.user_vote.vec[0] === "0" ? "bg-green-600/20 text-green-300 border-green-500/30" :
-                                    proposal.user_vote.vec[0] === "1" ? "bg-red-600/20 text-red-300 border-red-500/30" :
-                                    "bg-gray-600/20 text-gray-300 border-gray-500/30"
-                                  }>
-                                    {proposal.user_vote.vec[0] === "0" ? "Yes" : 
-                                     proposal.user_vote.vec[0] === "1" ? "No" : "Abstain"}
-                                  </Badge>
+                      proposals
+                        .slice(0, 10)
+                        .map(
+                          (
+                            proposal: any,
+                            index: React.Key | null | undefined
+                          ) => (
+                            <div
+                              key={index}
+                              className="p-6 bg-white/5 rounded-lg border border-white/10"
+                            >
+                              {/* Proposal Header */}
+                              <div className="flex justify-between items-start mb-4">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-3 mb-2">
+                                    <h4 className="text-white font-semibold text-lg">
+                                      {proposal.title}
+                                    </h4>
+                                    <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                                      Proposal #{proposal.id}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-gray-300 text-sm">
+                                    {proposal.description}
+                                  </p>
                                 </div>
-                              )}
-                            </div>
-                          </div>
+                                <Badge
+                                  className={getProposalStatusColor(
+                                    proposal.state || proposal.status
+                                  )}
+                                >
+                                  {getProposalStatusLabel(
+                                    proposal.state || proposal.status
+                                  )}
+                                </Badge>
+                              </div>
 
-                          {/* Linked AIP Information */}
-                          {proposal.linked_aip && proposal.linked_aip.vec && proposal.linked_aip.vec.length > 0 && (
-                            <div className="mb-4 p-3 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
-                              <p className="text-xs text-cyan-400 uppercase tracking-wide">Linked AIP</p>
-                              <p className="text-cyan-200 font-mono text-sm">
-                                AIP #{proposal.linked_aip.vec[0]}
-                              </p>
-                            </div>
-                          )}
+                              {/* Proposal Details Grid */}
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div className="p-3 bg-white/5 rounded-lg">
+                                  <p className="text-xs text-gray-400 uppercase tracking-wide">
+                                    DAO ID
+                                  </p>
+                                  <p className="text-white font-semibold">
+                                    {proposal.dao_id}
+                                  </p>
+                                </div>
+                                <div className="p-3 bg-white/5 rounded-lg">
+                                  <p className="text-xs text-gray-400 uppercase tracking-wide">
+                                    Total Votes
+                                  </p>
+                                  <p className="text-white font-semibold text-lg">
+                                    {parseInt(
+                                      proposal.total_votes || "0"
+                                    ).toLocaleString()}
+                                  </p>
+                                </div>
+                                <div className="p-3 bg-white/5 rounded-lg">
+                                  <p className="text-xs text-gray-400 uppercase tracking-wide">
+                                    Created
+                                  </p>
+                                  <p className="text-white font-semibold">
+                                    {new Date(
+                                      parseInt(proposal.created_at) * 1000
+                                    ).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              </div>
 
-                          {/* Proposal Timeline Footer */}
-                          <div className="text-xs text-gray-400 border-t border-white/10 pt-3">
-                            <div className="flex justify-between items-center">
-                              <span>
-                                Created: {new Date(parseInt(proposal.created_at) * 1000).toLocaleString()}
-                              </span>
-                              <span>
-                                Duration: {Math.ceil((parseInt(proposal.end_time) - parseInt(proposal.start_time)) / 86400)} days
-                              </span>
+                              {/* Proposer Information */}
+                              <div className="mb-4 p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                                <p className="text-xs text-purple-400 uppercase tracking-wide">
+                                  Proposed By
+                                </p>
+                                <p className="text-purple-200 font-mono text-sm">
+                                  {proposal.proposer.slice(0, 12)}...
+                                  {proposal.proposer.slice(-8)}
+                                </p>
+                              </div>
+
+                              {/* Voting Results */}
+                              <div className="mb-4 p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                                <p className="text-xs text-blue-400 uppercase tracking-wide mb-3">
+                                  Voting Results
+                                </p>
+
+                                <div className="grid grid-cols-3 gap-4 mb-3">
+                                  <div className="text-center">
+                                    <p className="text-green-200 font-bold text-lg">
+                                      {parseInt(
+                                        proposal.yes_votes || "0"
+                                      ).toLocaleString()}
+                                    </p>
+                                    <p className="text-xs text-green-400">
+                                      Yes Votes
+                                    </p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-red-200 font-bold text-lg">
+                                      {parseInt(
+                                        proposal.no_votes || "0"
+                                      ).toLocaleString()}
+                                    </p>
+                                    <p className="text-xs text-red-400">
+                                      No Votes
+                                    </p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-gray-200 font-bold text-lg">
+                                      {parseInt(
+                                        proposal.abstain_votes || "0"
+                                      ).toLocaleString()}
+                                    </p>
+                                    <p className="text-xs text-gray-400">
+                                      Abstain
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Voting Progress Bar */}
+                                <div className="mb-3">
+                                  <div className="flex justify-between text-xs text-blue-400 mb-1">
+                                    <span>Voting Distribution</span>
+                                    <span>
+                                      Total:{" "}
+                                      {parseInt(
+                                        proposal.total_votes || "0"
+                                      ).toLocaleString()}{" "}
+                                      votes
+                                    </span>
+                                  </div>
+                                  <div className="w-full flex rounded-full h-3 overflow-hidden">
+                                    <div
+                                      className="bg-green-500 transition-all duration-300"
+                                      style={{
+                                        width: `${
+                                          parseInt(proposal.total_votes) > 0
+                                            ? (parseInt(
+                                                proposal.yes_votes || "0"
+                                              ) /
+                                                parseInt(
+                                                  proposal.total_votes
+                                                )) *
+                                              100
+                                            : 0
+                                        }%`,
+                                      }}
+                                    />
+                                    <div
+                                      className="bg-red-500 transition-all duration-300"
+                                      style={{
+                                        width: `${
+                                          parseInt(proposal.total_votes) > 0
+                                            ? (parseInt(
+                                                proposal.no_votes || "0"
+                                              ) /
+                                                parseInt(
+                                                  proposal.total_votes
+                                                )) *
+                                              100
+                                            : 0
+                                        }%`,
+                                      }}
+                                    />
+                                    <div
+                                      className="bg-gray-500 transition-all duration-300"
+                                      style={{
+                                        width: `${
+                                          parseInt(proposal.total_votes) > 0
+                                            ? (parseInt(
+                                                proposal.abstain_votes || "0"
+                                              ) /
+                                                parseInt(
+                                                  proposal.total_votes
+                                                )) *
+                                              100
+                                            : 0
+                                        }%`,
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Voting Percentages */}
+                                <div className="grid grid-cols-3 gap-4 text-xs">
+                                  <div className="text-center">
+                                    <span className="text-green-300">
+                                      {parseInt(proposal.total_votes) > 0
+                                        ? Math.round(
+                                            (parseInt(
+                                              proposal.yes_votes || "0"
+                                            ) /
+                                              parseInt(proposal.total_votes)) *
+                                              100
+                                          )
+                                        : 0}
+                                      %
+                                    </span>
+                                  </div>
+                                  <div className="text-center">
+                                    <span className="text-red-300">
+                                      {parseInt(proposal.total_votes) > 0
+                                        ? Math.round(
+                                            (parseInt(
+                                              proposal.no_votes || "0"
+                                            ) /
+                                              parseInt(proposal.total_votes)) *
+                                              100
+                                          )
+                                        : 0}
+                                      %
+                                    </span>
+                                  </div>
+                                  <div className="text-center">
+                                    <span className="text-gray-300">
+                                      {parseInt(proposal.total_votes) > 0
+                                        ? Math.round(
+                                            (parseInt(
+                                              proposal.abstain_votes || "0"
+                                            ) /
+                                              parseInt(proposal.total_votes)) *
+                                              100
+                                          )
+                                        : 0}
+                                      %
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Timeline Information */}
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div className="p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                                  <p className="text-xs text-yellow-400 uppercase tracking-wide">
+                                    Start Time
+                                  </p>
+                                  <p className="text-yellow-200 text-sm">
+                                    {new Date(
+                                      parseInt(proposal.start_time) * 1000
+                                    ).toLocaleString()}
+                                  </p>
+                                </div>
+                                <div className="p-3 bg-orange-500/10 rounded-lg border border-orange-500/20">
+                                  <p className="text-xs text-orange-400 uppercase tracking-wide">
+                                    End Time
+                                  </p>
+                                  <p className="text-orange-200 text-sm">
+                                    {new Date(
+                                      parseInt(proposal.end_time) * 1000
+                                    ).toLocaleString()}
+                                  </p>
+                                  <p className="text-xs text-orange-300 mt-1">
+                                    {new Date(
+                                      parseInt(proposal.end_time) * 1000
+                                    ) > new Date()
+                                      ? "Active"
+                                      : "Ended"}
+                                  </p>
+                                </div>
+                                <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20">
+                                  <p className="text-xs text-red-400 uppercase tracking-wide">
+                                    Execution Time
+                                  </p>
+                                  <p className="text-red-200 text-sm">
+                                    {new Date(
+                                      parseInt(proposal.execution_time) * 1000
+                                    ).toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* User Voting Status */}
+                              <div className="mb-4 p-3 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
+                                <p className="text-xs text-indigo-400 uppercase tracking-wide">
+                                  Your Voting Status
+                                </p>
+                                <div className="flex items-center gap-4 mt-2">
+                                  <div className="flex items-center gap-2">
+                                    <Badge
+                                      className={
+                                        proposal.user_voted
+                                          ? "bg-green-600/20 text-green-300 border-green-500/30"
+                                          : "bg-gray-600/20 text-gray-300 border-gray-500/30"
+                                      }
+                                    >
+                                      {proposal.user_voted
+                                        ? "✓ Voted"
+                                        : "✗ Not Voted"}
+                                    </Badge>
+                                  </div>
+                                  {proposal.user_voted &&
+                                    proposal.user_vote &&
+                                    proposal.user_vote.vec &&
+                                    proposal.user_vote.vec.length > 0 && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-indigo-300 text-sm">
+                                          Your vote:
+                                        </span>
+                                        <Badge
+                                          className={
+                                            proposal.user_vote.vec[0] === "0"
+                                              ? "bg-green-600/20 text-green-300 border-green-500/30"
+                                              : proposal.user_vote.vec[0] ===
+                                                "1"
+                                              ? "bg-red-600/20 text-red-300 border-red-500/30"
+                                              : "bg-gray-600/20 text-gray-300 border-gray-500/30"
+                                          }
+                                        >
+                                          {proposal.user_vote.vec[0] === "0"
+                                            ? "Yes"
+                                            : proposal.user_vote.vec[0] === "1"
+                                            ? "No"
+                                            : "Abstain"}
+                                        </Badge>
+                                      </div>
+                                    )}
+                                </div>
+                              </div>
+
+                              {/* Linked AIP Information */}
+                              {proposal.linked_aip &&
+                                proposal.linked_aip.vec &&
+                                proposal.linked_aip.vec.length > 0 && (
+                                  <div className="mb-4 p-3 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
+                                    <p className="text-xs text-cyan-400 uppercase tracking-wide">
+                                      Linked AIP
+                                    </p>
+                                    <p className="text-cyan-200 font-mono text-sm">
+                                      AIP #{proposal.linked_aip.vec[0]}
+                                    </p>
+                                  </div>
+                                )}
+
+                              {/* Proposal Timeline Footer */}
+                              <div className="text-xs text-gray-400 border-t border-white/10 pt-3">
+                                <div className="flex justify-between items-center">
+                                  <span>
+                                    Created:{" "}
+                                    {new Date(
+                                      parseInt(proposal.created_at) * 1000
+                                    ).toLocaleString()}
+                                  </span>
+                                  <span>
+                                    Duration:{" "}
+                                    {Math.ceil(
+                                      (parseInt(proposal.end_time) -
+                                        parseInt(proposal.start_time)) /
+                                        86400
+                                    )}{" "}
+                                    days
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      ))
+                          )
+                        )
                     )}
                     {proposals.length > 10 && (
                       <div className="text-center pt-4">
@@ -1559,7 +1882,9 @@ export default function GovernancePage() {
                           And {proposals.length - 10} more proposals...
                         </p>
                         <Button
-                          onClick={() => window.location.href = '/dao/proposals'}
+                          onClick={() =>
+                            (window.location.href = "/dao/proposals")
+                          }
                           className="mt-2 bg-gradient-to-r from-red-900 to-red-700"
                         >
                           View All Proposals
@@ -1584,199 +1909,308 @@ export default function GovernancePage() {
                   <div className="space-y-4">
                     {tasks.length === 0 ? (
                       <div className="text-center py-8">
-                        <p className="text-gray-400">No tasks found for this DAO.</p>
+                        <p className="text-gray-400">
+                          No tasks found for this DAO.
+                        </p>
                       </div>
                     ) : (
-                      tasks.slice(0, 10).map((task: any, index: React.Key | null | undefined) => (
-                        <div
-                          key={index}
-                          className="p-6 bg-white/5 rounded-lg border border-white/10"
-                        >
-                          {/* Task Header */}
-                          <div className="flex justify-between items-start mb-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
-                                <h4 className="text-white font-semibold text-lg">{task.title}</h4>
-                                <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                                  Task #{task.id}
+                      tasks
+                        .slice(0, 10)
+                        .map(
+                          (task: any, index: React.Key | null | undefined) => (
+                            <div
+                              key={index}
+                              className="p-6 bg-white/5 rounded-lg border border-white/10"
+                            >
+                              {/* Task Header */}
+                              <div className="flex justify-between items-start mb-4">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-3 mb-2">
+                                    <h4 className="text-white font-semibold text-lg">
+                                      {task.title}
+                                    </h4>
+                                    <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                                      Task #{task.id}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-gray-300 text-sm">
+                                    {task.description}
+                                  </p>
+                                </div>
+                                <Badge
+                                  className={getTaskStatusColor(
+                                    task.state || task.status
+                                  )}
+                                >
+                                  {getTaskStatusLabel(
+                                    task.state || task.status
+                                  )}
                                 </Badge>
                               </div>
-                              <p className="text-gray-300 text-sm">{task.description}</p>
-                            </div>
-                            <Badge className={getTaskStatusColor(task.state || task.status)}>
-                              {getTaskStatusLabel(task.state || task.status)}
-                            </Badge>
-                          </div>
 
-                          {/* Task Details Grid */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div className="p-3 bg-white/5 rounded-lg">
-                              <p className="text-xs text-gray-400 uppercase tracking-wide">Bounty Amount</p>
-                              <p className="text-white font-semibold text-lg">
-                                {(parseInt(task.bounty_amount || task.reward || "0") / 100000000).toFixed(2)} APT
-                              </p>
-                            </div>
-                            <div className="p-3 bg-white/5 rounded-lg">
-                              <p className="text-xs text-gray-400 uppercase tracking-wide">DAO ID</p>
-                              <p className="text-white font-semibold">{task.dao_id}</p>
-                            </div>
-                            <div className="p-3 bg-white/5 rounded-lg">
-                              <p className="text-xs text-gray-400 uppercase tracking-wide">Created</p>
-                              <p className="text-white font-semibold">
-                                {new Date(parseInt(task.created_at) * 1000).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Deadline and Assignment */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div className="p-3 bg-orange-500/10 rounded-lg border border-orange-500/20">
-                              <p className="text-xs text-orange-400 uppercase tracking-wide">Deadline</p>
-                              <p className="text-orange-200 font-semibold">
-                                {new Date(parseInt(task.deadline) * 1000).toLocaleString()}
-                              </p>
-                              <p className="text-xs text-orange-300 mt-1">
-                                {new Date(parseInt(task.deadline) * 1000) > new Date() ? 'Active' : 'Expired'}
-                              </p>
-                            </div>
-                            <div className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                              <p className="text-xs text-blue-400 uppercase tracking-wide">Assignee</p>
-                              {task.assignee && task.assignee.vec && task.assignee.vec.length > 0 ? (
-                                <p className="text-blue-200 font-mono text-sm">
-                                  {task.assignee.vec[0].slice(0, 12)}...{task.assignee.vec[0].slice(-8)}
-                                </p>
-                              ) : (
-                                <p className="text-blue-300 text-sm">Not assigned</p>
-                              )}
-                              <div className="flex items-center gap-2 mt-1">
-                                {task.user_is_assignee && (
-                                  <Badge className="bg-blue-600/20 text-blue-300 text-xs">You are assignee</Badge>
-                                )}
-                                {task.user_is_creator && (
-                                  <Badge className="bg-purple-600/20 text-purple-300 text-xs">You created this</Badge>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Creator Information */}
-                          <div className="mb-4 p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
-                            <p className="text-xs text-purple-400 uppercase tracking-wide">Created By</p>
-                            <p className="text-purple-200 font-mono text-sm">
-                              {task.creator.slice(0, 12)}...{task.creator.slice(-8)}
-                            </p>
-                          </div>
-
-                          {/* Validation Information */}
-                          {(task.required_validations || task.total_validations || task.positive_validations) && (
-                            <div className="mb-4 p-4 bg-green-500/10 rounded-lg border border-green-500/20">
-                              <p className="text-xs text-green-400 uppercase tracking-wide mb-3">Validation Status</p>
-                              
-                              <div className="grid grid-cols-3 gap-4 mb-3">
-                                <div className="text-center">
-                                  <p className="text-green-200 font-bold text-lg">
-                                    {task.positive_validations || 0}
+                              {/* Task Details Grid */}
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div className="p-3 bg-white/5 rounded-lg">
+                                  <p className="text-xs text-gray-400 uppercase tracking-wide">
+                                    Bounty Amount
                                   </p>
-                                  <p className="text-xs text-green-400">Positive</p>
+                                  <p className="text-white font-semibold text-lg">
+                                    {(
+                                      parseInt(
+                                        task.bounty_amount || task.reward || "0"
+                                      ) / 100000000
+                                    ).toFixed(2)}{" "}
+                                    APT
+                                  </p>
                                 </div>
-                                <div className="text-center">
-                                  <p className="text-green-200 font-bold text-lg">
-                                    {task.total_validations || 0}
+                                <div className="p-3 bg-white/5 rounded-lg">
+                                  <p className="text-xs text-gray-400 uppercase tracking-wide">
+                                    DAO ID
                                   </p>
-                                  <p className="text-xs text-green-400">Total</p>
+                                  <p className="text-white font-semibold">
+                                    {task.dao_id}
+                                  </p>
                                 </div>
-                                <div className="text-center">
-                                  <p className="text-green-200 font-bold text-lg">
-                                    {task.required_validations || 0}
+                                <div className="p-3 bg-white/5 rounded-lg">
+                                  <p className="text-xs text-gray-400 uppercase tracking-wide">
+                                    Created
                                   </p>
-                                  <p className="text-xs text-green-400">Required</p>
+                                  <p className="text-white font-semibold">
+                                    {new Date(
+                                      parseInt(task.created_at) * 1000
+                                    ).toLocaleDateString()}
+                                  </p>
                                 </div>
                               </div>
 
-                              {/* Validation Progress Bar */}
-                              {task.required_validations && (
-                                <div className="mb-3">
-                                  <div className="flex justify-between text-xs text-green-400 mb-1">
-                                    <span>Validation Progress</span>
-                                    <span>
-                                      {task.positive_validations || 0}/{task.required_validations} 
-                                      ({Math.round(((task.positive_validations || 0) / task.required_validations) * 100)}%)
-                                    </span>
-                                  </div>
-                                  <div className="w-full bg-green-900/30 rounded-full h-2">
-                                    <div 
-                                      className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                                      style={{
-                                        width: `${Math.min(((task.positive_validations || 0) / task.required_validations) * 100, 100)}%`
-                                      }}
-                                    />
-                                  </div>
+                              {/* Deadline and Assignment */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div className="p-3 bg-orange-500/10 rounded-lg border border-orange-500/20">
+                                  <p className="text-xs text-orange-400 uppercase tracking-wide">
+                                    Deadline
+                                  </p>
+                                  <p className="text-orange-200 font-semibold">
+                                    {new Date(
+                                      parseInt(task.deadline) * 1000
+                                    ).toLocaleString()}
+                                  </p>
+                                  <p className="text-xs text-orange-300 mt-1">
+                                    {new Date(parseInt(task.deadline) * 1000) >
+                                    new Date()
+                                      ? "Active"
+                                      : "Expired"}
+                                  </p>
                                 </div>
-                              )}
-
-                              {/* Validation Results */}
-                              {task.validation_results && task.validation_results.length > 0 && (
-                                <div className="mb-3">
-                                  <p className="text-xs text-green-400 mb-2">Validation Results:</p>
-                                  <div className="flex gap-1">
-                                    {task.validation_results.map((result: boolean, idx: number) => (
-                                      <Badge 
-                                        key={idx} 
-                                        className={result ? 
-                                          "bg-green-600/20 text-green-300 border-green-500/30" : 
-                                          "bg-red-600/20 text-red-300 border-red-500/30"
-                                        }
-                                      >
-                                        {result ? '✓' : '✗'}
+                                <div className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                                  <p className="text-xs text-blue-400 uppercase tracking-wide">
+                                    Assignee
+                                  </p>
+                                  {task.assignee &&
+                                  task.assignee.vec &&
+                                  task.assignee.vec.length > 0 ? (
+                                    <p className="text-blue-200 font-mono text-sm">
+                                      {task.assignee.vec[0].slice(0, 12)}...
+                                      {task.assignee.vec[0].slice(-8)}
+                                    </p>
+                                  ) : (
+                                    <p className="text-blue-300 text-sm">
+                                      Not assigned
+                                    </p>
+                                  )}
+                                  <div className="flex items-center gap-2 mt-1">
+                                    {task.user_is_assignee && (
+                                      <Badge className="bg-blue-600/20 text-blue-300 text-xs">
+                                        You are assignee
                                       </Badge>
-                                    ))}
+                                    )}
+                                    {task.user_is_creator && (
+                                      <Badge className="bg-purple-600/20 text-purple-300 text-xs">
+                                        You created this
+                                      </Badge>
+                                    )}
                                   </div>
                                 </div>
-                              )}
+                              </div>
 
-                              {/* Validators */}
-                              {task.validators && task.validators.length > 0 && (
-                                <div>
-                                  <p className="text-xs text-green-400 mb-2">Validators ({task.validators.length}):</p>
-                                  <div className="space-y-1">
-                                    {task.validators.map((validator: string, idx: number) => (
-                                      <div key={idx} className="flex items-center justify-between text-xs">
-                                        <span className="text-green-200 font-mono">
-                                          {validator.slice(0, 12)}...{validator.slice(-8)}
+                              {/* Creator Information */}
+                              <div className="mb-4 p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                                <p className="text-xs text-purple-400 uppercase tracking-wide">
+                                  Created By
+                                </p>
+                                <p className="text-purple-200 font-mono text-sm">
+                                  {task.creator.slice(0, 12)}...
+                                  {task.creator.slice(-8)}
+                                </p>
+                              </div>
+
+                              {/* Validation Information */}
+                              {(task.required_validations ||
+                                task.total_validations ||
+                                task.positive_validations) && (
+                                <div className="mb-4 p-4 bg-green-500/10 rounded-lg border border-green-500/20">
+                                  <p className="text-xs text-green-400 uppercase tracking-wide mb-3">
+                                    Validation Status
+                                  </p>
+
+                                  <div className="grid grid-cols-3 gap-4 mb-3">
+                                    <div className="text-center">
+                                      <p className="text-green-200 font-bold text-lg">
+                                        {task.positive_validations || 0}
+                                      </p>
+                                      <p className="text-xs text-green-400">
+                                        Positive
+                                      </p>
+                                    </div>
+                                    <div className="text-center">
+                                      <p className="text-green-200 font-bold text-lg">
+                                        {task.total_validations || 0}
+                                      </p>
+                                      <p className="text-xs text-green-400">
+                                        Total
+                                      </p>
+                                    </div>
+                                    <div className="text-center">
+                                      <p className="text-green-200 font-bold text-lg">
+                                        {task.required_validations || 0}
+                                      </p>
+                                      <p className="text-xs text-green-400">
+                                        Required
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {/* Validation Progress Bar */}
+                                  {task.required_validations && (
+                                    <div className="mb-3">
+                                      <div className="flex justify-between text-xs text-green-400 mb-1">
+                                        <span>Validation Progress</span>
+                                        <span>
+                                          {task.positive_validations || 0}/
+                                          {task.required_validations}(
+                                          {Math.round(
+                                            ((task.positive_validations || 0) /
+                                              task.required_validations) *
+                                              100
+                                          )}
+                                          %)
                                         </span>
-                                        {task.validation_results && task.validation_results[idx] !== undefined && (
-                                          <Badge 
-                                            className={task.validation_results[idx] ? 
-                                              "bg-green-600/20 text-green-300 border-green-500/30" : 
-                                              "bg-red-600/20 text-red-300 border-red-500/30"
-                                            }
-                                          >
-                                            {task.validation_results[idx] ? 'Approved' : 'Rejected'}
-                                          </Badge>
-                                        )}
                                       </div>
-                                    ))}
-                                  </div>
+                                      <div className="w-full bg-green-900/30 rounded-full h-2">
+                                        <div
+                                          className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                                          style={{
+                                            width: `${Math.min(
+                                              ((task.positive_validations ||
+                                                0) /
+                                                task.required_validations) *
+                                                100,
+                                              100
+                                            )}%`,
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Validation Results */}
+                                  {task.validation_results &&
+                                    task.validation_results.length > 0 && (
+                                      <div className="mb-3">
+                                        <p className="text-xs text-green-400 mb-2">
+                                          Validation Results:
+                                        </p>
+                                        <div className="flex gap-1">
+                                          {task.validation_results.map(
+                                            (result: boolean, idx: number) => (
+                                              <Badge
+                                                key={idx}
+                                                className={
+                                                  result
+                                                    ? "bg-green-600/20 text-green-300 border-green-500/30"
+                                                    : "bg-red-600/20 text-red-300 border-red-500/30"
+                                                }
+                                              >
+                                                {result ? "✓" : "✗"}
+                                              </Badge>
+                                            )
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                  {/* Validators */}
+                                  {task.validators &&
+                                    task.validators.length > 0 && (
+                                      <div>
+                                        <p className="text-xs text-green-400 mb-2">
+                                          Validators ({task.validators.length}):
+                                        </p>
+                                        <div className="space-y-1">
+                                          {task.validators.map(
+                                            (
+                                              validator: string,
+                                              idx: number
+                                            ) => (
+                                              <div
+                                                key={idx}
+                                                className="flex items-center justify-between text-xs"
+                                              >
+                                                <span className="text-green-200 font-mono">
+                                                  {validator.slice(0, 12)}...
+                                                  {validator.slice(-8)}
+                                                </span>
+                                                {task.validation_results &&
+                                                  task.validation_results[
+                                                    idx
+                                                  ] !== undefined && (
+                                                    <Badge
+                                                      className={
+                                                        task.validation_results[
+                                                          idx
+                                                        ]
+                                                          ? "bg-green-600/20 text-green-300 border-green-500/30"
+                                                          : "bg-red-600/20 text-red-300 border-red-500/30"
+                                                      }
+                                                    >
+                                                      {task.validation_results[
+                                                        idx
+                                                      ]
+                                                        ? "Approved"
+                                                        : "Rejected"}
+                                                    </Badge>
+                                                  )}
+                                              </div>
+                                            )
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
                                 </div>
                               )}
-                            </div>
-                          )}
 
-                          {/* Task Timeline */}
-                          <div className="text-xs text-gray-400 border-t border-white/10 pt-3">
-                            <div className="flex justify-between items-center">
-                              <span>
-                                Created: {new Date(parseInt(task.created_at) * 1000).toLocaleString()}
-                              </span>
-                              {task.completed_at && parseInt(task.completed_at) > 0 && (
-                                <span>
-                                  Completed: {new Date(parseInt(task.completed_at) * 1000).toLocaleString()}
-                                </span>
-                              )}
+                              {/* Task Timeline */}
+                              <div className="text-xs text-gray-400 border-t border-white/10 pt-3">
+                                <div className="flex justify-between items-center">
+                                  <span>
+                                    Created:{" "}
+                                    {new Date(
+                                      parseInt(task.created_at) * 1000
+                                    ).toLocaleString()}
+                                  </span>
+                                  {task.completed_at &&
+                                    parseInt(task.completed_at) > 0 && (
+                                      <span>
+                                        Completed:{" "}
+                                        {new Date(
+                                          parseInt(task.completed_at) * 1000
+                                        ).toLocaleString()}
+                                      </span>
+                                    )}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      ))
+                          )
+                        )
                     )}
                     {tasks.length > 10 && (
                       <div className="text-center pt-4">
@@ -1784,7 +2218,7 @@ export default function GovernancePage() {
                           And {tasks.length - 10} more tasks...
                         </p>
                         <Button
-                          onClick={() => window.location.href = '/dao/tasks'}
+                          onClick={() => (window.location.href = "/dao/tasks")}
                           className="mt-2 bg-gradient-to-r from-red-900 to-red-700"
                         >
                           View All Tasks
@@ -1811,21 +2245,26 @@ export default function GovernancePage() {
                 <CardContent>
                   <div className="space-y-4">
                     {selectedDAO.members?.map((member, index) => {
-                      const isGovernor = selectedDAO.governors?.includes(member);
+                      const isGovernor =
+                        selectedDAO.governors?.includes(member);
                       const isCreator = member === selectedDAO.creator;
                       const isPromoting = promotingMembers.includes(member);
-                      
+
                       return (
                         <div
                           key={index}
                           className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10"
                         >
                           <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg ${
-                              isCreator ? 'bg-gradient-to-br from-yellow-900 to-yellow-700' :
-                              isGovernor ? 'bg-gradient-to-br from-red-900 to-red-700' :
-                              'bg-gradient-to-br from-blue-900 to-blue-700'
-                            }`}>
+                            <div
+                              className={`p-2 rounded-lg ${
+                                isCreator
+                                  ? "bg-gradient-to-br from-yellow-900 to-yellow-700"
+                                  : isGovernor
+                                  ? "bg-gradient-to-br from-red-900 to-red-700"
+                                  : "bg-gradient-to-br from-blue-900 to-blue-700"
+                              }`}
+                            >
                               {isCreator ? (
                                 <Star className="w-4 h-4 text-white" />
                               ) : isGovernor ? (
@@ -1836,7 +2275,8 @@ export default function GovernancePage() {
                             </div>
                             <div>
                               <p className="text-white font-mono text-sm">
-                                {member.toString().slice(0, 12)}...{member.toString().slice(-12)}
+                                {member.toString().slice(0, 12)}...
+                                {member.toString().slice(-12)}
                               </p>
                               <div className="flex items-center gap-2 mt-1">
                                 {isCreator && (
@@ -1857,13 +2297,15 @@ export default function GovernancePage() {
                               </div>
                             </div>
                           </div>
-                          
+
                           {/* Action buttons for DAO Creator */}
                           {isDAOCreator && (
                             <div className="flex items-center gap-2">
                               {!isGovernor && !isCreator && (
                                 <Button
-                                  onClick={() => promoteMemberToGovernor(member)}
+                                  onClick={() =>
+                                    promoteMemberToGovernor(member)
+                                  }
                                   disabled={isPromoting}
                                   size="sm"
                                   className="bg-gradient-to-r from-green-900 to-green-700 hover:from-green-800 hover:to-green-600"
@@ -1881,7 +2323,7 @@ export default function GovernancePage() {
                                   )}
                                 </Button>
                               )}
-                              
+
                               {isGovernor && !isCreator && (
                                 <Button
                                   onClick={() => demoteGovernor(member)}
@@ -1893,7 +2335,7 @@ export default function GovernancePage() {
                                   Demote
                                 </Button>
                               )}
-                              
+
                               {isCreator && (
                                 <Badge className="bg-yellow-600/20 text-yellow-400 text-xs px-2 py-1">
                                   Owner
@@ -1904,8 +2346,9 @@ export default function GovernancePage() {
                         </div>
                       );
                     })}
-                    
-                    {(!selectedDAO.members || selectedDAO.members.length === 0) && (
+
+                    {(!selectedDAO.members ||
+                      selectedDAO.members.length === 0) && (
                       <div className="text-center py-8">
                         <p className="text-gray-400">No members found.</p>
                       </div>

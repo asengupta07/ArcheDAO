@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import InViewMotion from "@/components/InViewMotion";
-import { Aurora } from "@/components/aurora";
+
+import { GradientBackground } from "@/components/ui/gradient-background";
 import {
   Target,
   Plus,
@@ -51,7 +52,7 @@ export default function TasksPage() {
   useEffect(() => {
     const fetchTasks = async () => {
       if (!connected || !account) return;
-      
+
       try {
         const daoTasks = await getDAOTasks(daoId);
         setTasks(daoTasks);
@@ -90,11 +91,9 @@ export default function TasksPage() {
     }
 
     return (
-      <Badge
-        variant="outline"
-        className={`${statusColor} capitalize`}
-      >
-        {statusLabel}{additionalInfo}
+      <Badge variant="outline" className={`${statusColor} capitalize`}>
+        {statusLabel}
+        {additionalInfo}
       </Badge>
     );
   };
@@ -108,37 +107,48 @@ export default function TasksPage() {
     const assigneeAddress = task.assignee;
     return (
       <span className="font-mono text-red-100">
-        {assigneeAddress.toString().slice(0, 6)}...{assigneeAddress.toString().slice(-4)}
+        {assigneeAddress.toString().slice(0, 6)}...
+        {assigneeAddress.toString().slice(-4)}
       </span>
     );
   };
 
   const renderValidators = (task: TaskInfo) => {
-    if (!task.validators || !Array.isArray(task.validators) || task.validators.length === 0) {
+    if (
+      !task.validators ||
+      !Array.isArray(task.validators) ||
+      task.validators.length === 0
+    ) {
       return <span className="text-red-200">No validators yet</span>;
     }
 
     return (
       <div className="space-y-1">
         {task.validators.map((validator, index) => {
-          const validatorAddress = typeof validator === 'string' 
-            ? validator 
-            : String(validator);
-            
+          const validatorAddress =
+            typeof validator === "string" ? validator : String(validator);
+
           return (
             <div key={index} className="flex items-center gap-2 text-sm">
               <User className="w-4 h-4 text-red-300" />
               <span className="font-mono text-red-100">
                 {validatorAddress.slice(0, 6)}...{validatorAddress.slice(-4)}
               </span>
-              {task.validation_results && task.validation_results[validatorAddress] !== undefined && (
-                <Badge
-                  variant="outline"
-                  className={task.validation_results[validatorAddress] ? "text-green-400" : "text-red-400"}
-                >
-                  {task.validation_results[validatorAddress] ? "Approved" : "Rejected"}
-                </Badge>
-              )}
+              {task.validation_results &&
+                task.validation_results[validatorAddress] !== undefined && (
+                  <Badge
+                    variant="outline"
+                    className={
+                      task.validation_results[validatorAddress]
+                        ? "text-green-400"
+                        : "text-red-400"
+                    }
+                  >
+                    {task.validation_results[validatorAddress]
+                      ? "Approved"
+                      : "Rejected"}
+                  </Badge>
+                )}
             </div>
           );
         })}
@@ -149,7 +159,9 @@ export default function TasksPage() {
   // Filter tasks based on selected filter
   const filteredTasks = tasks.filter((task) => {
     if (filter === "my-tasks") {
-      return task.user_is_creator || task.user_is_assignee || task.user_is_validator;
+      return (
+        task.user_is_creator || task.user_is_assignee || task.user_is_validator
+      );
     }
     if (filter === "open") return task.state === TASK_STATUS.OPEN;
     if (filter === "assigned") return task.state === TASK_STATUS.ASSIGNED;
@@ -162,12 +174,7 @@ export default function TasksPage() {
     return (
       <div className="min-h-screen relative">
         <div className="fixed inset-0 z-0">
-          <Aurora
-            colorStops={["#1a0000", "#000000", "#1a0000"]}
-            amplitude={1.2}
-            speed={0.3}
-            blend={0.8}
-          />
+          <GradientBackground />
         </div>
         <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
           <Card className="bg-black/40 border-red-900/40 backdrop-blur-xl p-8 text-center max-w-lg">
@@ -176,7 +183,8 @@ export default function TasksPage() {
                 Connect Your Wallet
               </CardTitle>
               <p className="text-red-200">
-                Please connect your wallet to access tasks and start contributing to the DAO.
+                Please connect your wallet to access tasks and start
+                contributing to the DAO.
               </p>
             </CardHeader>
           </Card>
@@ -188,12 +196,7 @@ export default function TasksPage() {
   return (
     <div className="min-h-screen relative">
       <div className="fixed inset-0 z-0">
-        <Aurora
-          colorStops={["#1a0000", "#000000", "#1a0000"]}
-          amplitude={1.2}
-          speed={0.3}
-          blend={0.8}
-        />
+        <GradientBackground />
       </div>
 
       <div className="relative z-10 container mx-auto px-4 py-[8rem] mt-6">
@@ -303,8 +306,12 @@ export default function TasksPage() {
                     <p className="text-2xl font-bold text-red-50">
                       {
                         (tasks || []).filter((t) => {
-                          const taskAssignee = t.assignee ? t.assignee.toString() : null;
-                          const userAddress = account?.address ? account.address.toString() : null;
+                          const taskAssignee = t.assignee
+                            ? t.assignee.toString()
+                            : null;
+                          const userAddress = account?.address
+                            ? account.address.toString()
+                            : null;
                           return taskAssignee === userAddress;
                         }).length
                       }
@@ -332,9 +339,11 @@ export default function TasksPage() {
                 variant={filter === status ? "default" : "outline"}
                 onClick={() => setFilter(status)}
                 className={`
-                  ${filter === status
-                    ? "bg-red-950/60 border-red-800 text-red-50 shadow-lg shadow-red-900/20"
-                    : "border-red-900/40 text-red-200 hover:bg-red-950/60 hover:text-red-50 bg-red-950 hover:border-red-800"}
+                  ${
+                    filter === status
+                      ? "bg-red-950/60 border-red-800 text-red-50 shadow-lg shadow-red-900/20"
+                      : "border-red-900/40 text-red-200 hover:bg-red-950/60 hover:text-red-50 bg-red-950 hover:border-red-800"
+                  }
                   transition-all duration-300 hover:scale-105
                 `}
               >
@@ -366,15 +375,16 @@ export default function TasksPage() {
 
                       <div className="flex flex-wrap gap-4">
                         {renderTaskStatus(task)}
-                        <Badge
-                          variant="outline"
-                          className="text-yellow-400"
-                        >
+                        <Badge variant="outline" className="text-yellow-400">
                           {formatAPTAmount(task.bounty_amount)} APT
                         </Badge>
                         <Badge
                           variant="outline"
-                          className={isTaskExpired(task.deadline) ? "text-red-400" : "text-green-400"}
+                          className={
+                            isTaskExpired(task.deadline)
+                              ? "text-red-400"
+                              : "text-green-400"
+                          }
                         >
                           Due {formatDeadline(task.deadline)}
                         </Badge>
@@ -386,24 +396,28 @@ export default function TasksPage() {
                           <span>Assignee:</span>
                           {renderAssignee(task)}
                         </div>
-                        {task.required_skills && Array.isArray(task.required_skills) && task.required_skills.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {task.required_skills.map((skill, index) => (
-                              <Badge
-                                key={index}
-                                variant="outline"
-                                className="text-blue-400"
-                              >
-                                {skill}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
+                        {task.required_skills &&
+                          Array.isArray(task.required_skills) &&
+                          task.required_skills.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {task.required_skills.map((skill, index) => (
+                                <Badge
+                                  key={index}
+                                  variant="outline"
+                                  className="text-blue-400"
+                                >
+                                  {skill}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
                       </div>
 
                       {task.state === TASK_STATUS.SUBMITTED && (
                         <div className="space-y-2">
-                          <h4 className="text-sm font-medium text-red-100">Validators</h4>
+                          <h4 className="text-sm font-medium text-red-100">
+                            Validators
+                          </h4>
                           {renderValidators(task)}
                         </div>
                       )}
@@ -418,20 +432,21 @@ export default function TasksPage() {
                         View Details
                       </Button>
 
-                      {task.state === TASK_STATUS.OPEN && !task.user_is_creator && (
-                        <Button
-                          onClick={() => handleAssignTask(task.id)}
-                          disabled={loading}
-                          className="bg-green-950 hover:bg-green-900 text-green-50 border border-green-800/50"
-                        >
-                          {loading ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <CheckCircle className="w-4 h-4 mr-2" />
-                          )}
-                          Take Task
-                        </Button>
-                      )}
+                      {task.state === TASK_STATUS.OPEN &&
+                        !task.user_is_creator && (
+                          <Button
+                            onClick={() => handleAssignTask(task.id)}
+                            disabled={loading}
+                            className="bg-green-950 hover:bg-green-900 text-green-50 border border-green-800/50"
+                          >
+                            {loading ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                            )}
+                            Take Task
+                          </Button>
+                        )}
                     </div>
                   </div>
                 </CardContent>
