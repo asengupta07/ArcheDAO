@@ -159,6 +159,7 @@ module DAOri::core {
         validation_results: Table<address, bool>,
         completion_proof: Option<String>,
         created_at: u64,
+        required_validations: u64, // Number of validations required for completion
     }
 
     struct Delegate has key, store {
@@ -317,6 +318,11 @@ module DAOri::core {
         created_at: u64,
         user_is_creator: bool,
         user_is_assignee: bool,
+        required_validations: u64,
+        total_validations: u64,
+        positive_validations: u64,
+        validators: vector<address>,
+        validation_results: vector<bool>,
     }
 
     // User membership details for a DAO
@@ -992,10 +998,14 @@ module DAOri::core {
         description: String,
         bounty_amount: u64,
         required_skills: vector<String>,
-        deadline: u64
-    ) acquires DAORegistry, TaskRegistry, PlatformStats, PlatformConfig, UserProfile {
+        deadline: u64,
+        required_validations: u64 // New parameter
+    ) acquires TaskRegistry, DAORegistry, PlatformStats, PlatformConfig, UserProfile {
         let creator_addr = signer::address_of(creator);
         let config = borrow_global<PlatformConfig>(ADMIN_ADDRESS);
+        
+        // Require at least 2 validations
+        assert!(required_validations >= 2, E_INVALID_VALIDATION);
         
         // Charge task creation fee
         let payment = coin::withdraw<AptosCoin>(creator, config.task_creation_fee);
@@ -1028,6 +1038,7 @@ module DAOri::core {
             validation_results: table::new(),
             completion_proof: option::none(),
             created_at: timestamp::now_seconds(),
+            required_validations,
         };
 
         // Store task in central registry
@@ -1319,7 +1330,7 @@ module DAOri::core {
             profile.contribution_score = profile.contribution_score + 10; // +10 for validation work
         };
         
-        // Check if task should be completed (simple majority)
+        // Check if task has received enough valid validations
         let total_validators = vector::length(&task.validators);
         let valid_count = 0;
         let i = 0;
@@ -1331,8 +1342,8 @@ module DAOri::core {
             i = i + 1;
         };
         
-        // If majority validates, complete task
-        if (valid_count > total_validators / 2) {
+        // Complete task if we have enough valid validations
+        if (valid_count >= task.required_validations) {
             task.state = TASK_COMPLETED;
             
             // Award contribution score to task assignee for completion
@@ -2639,11 +2650,28 @@ module DAOri::core {
         let task_registry = borrow_global<TaskRegistry>(ADMIN_ADDRESS);
         if (table::contains(&task_registry.tasks_by_dao, dao_id)) {
             let dao_task_ids = table::borrow(&task_registry.tasks_by_dao, dao_id);
-            let i = 0;
-            while (i < vector::length(dao_task_ids)) {
-                let task_id = *vector::borrow(dao_task_ids, i);
+            let _i = 0;
+            while (_i < vector::length(dao_task_ids)) {
+                let task_id = *vector::borrow(dao_task_ids, _i);
                 let task = table::borrow(&task_registry.tasks, task_id);
                 
+                // Calculate validation stats
+                let total_validations = vector::length(&task.validators);
+                let mut_validators = &task.validators;
+                let mut_results = &task.validation_results;
+                let positive_validations = 0;
+                let validation_results = vector::empty<bool>();
+                let _j = 0;
+                while (_j < total_validations) {
+                    let validator = vector::borrow(mut_validators, _j);
+                    let is_valid = *table::borrow(mut_results, *validator);
+                    if (is_valid) {
+                        positive_validations = positive_validations + 1;
+                    };
+                    vector::push_back(&mut validation_results, is_valid);
+                    _j = _j + 1;
+                };
+
                 let task_info = TaskInfo {
                     id: task.id,
                     dao_id: task.dao_id,
@@ -2657,9 +2685,14 @@ module DAOri::core {
                     created_at: task.created_at,
                     user_is_creator: task.creator == user_address,
                     user_is_assignee: option::contains(&task.assignee, &user_address),
+                    required_validations: task.required_validations,
+                    total_validations,
+                    positive_validations,
+                    validators: *mut_validators,
+                    validation_results,
                 };
                 vector::push_back(&mut tasks, task_info);
-                i = i + 1;
+                _i = _i + 1;
             };
         };
         
@@ -2669,13 +2702,13 @@ module DAOri::core {
     // Helper function: Count user proposals in a DAO
     fun count_user_proposals_in_dao(user_address: address, dao_id: u64, proposals: &vector<ProposalInfo>): u64 {
         let count = 0;
-        let i = 0;
-        while (i < vector::length(proposals)) {
-            let proposal = vector::borrow(proposals, i);
+        let _i = 0;
+        while (_i < vector::length(proposals)) {
+            let proposal = vector::borrow(proposals, _i);
             if (proposal.proposer == user_address && proposal.dao_id == dao_id) {
                 count = count + 1;
             };
-            i = i + 1;
+            _i = _i + 1;
         };
         count
     }
@@ -2683,13 +2716,13 @@ module DAOri::core {
     // Helper function: Count user tasks in a DAO
     fun count_user_tasks_in_dao(dao_id: u64, tasks: &vector<TaskInfo>): u64 {
         let count = 0;
-        let i = 0;
-        while (i < vector::length(tasks)) {
-            let task = vector::borrow(tasks, i);
+        let _i = 0;
+        while (_i < vector::length(tasks)) {
+            let task = vector::borrow(tasks, _i);
             if (task.user_is_creator && task.dao_id == dao_id) {
                 count = count + 1;
             };
-            i = i + 1;
+            _i = _i + 1;
         };
         count
     }
@@ -2698,15 +2731,14 @@ module DAOri::core {
     fun count_user_votes_in_dao(proposals: &vector<ProposalInfo>): (u64, u64) {
         let votes_count = 0;
         let total_power_used = 0;
-        let i = 0;
-        while (i < vector::length(proposals)) {
-            let proposal = vector::borrow(proposals, i);
+        let _i = 0;
+        while (_i < vector::length(proposals)) {
+            let proposal = vector::borrow(proposals, _i);
             if (proposal.user_voted) {
                 votes_count = votes_count + 1;
-                // Note: We don't have voting power per vote stored, so this is approximate
-                total_power_used = total_power_used + 100; // Assuming base voting power
+                total_power_used = total_power_used + 100;
             };
-            i = i + 1;
+            _i = _i + 1;
         };
         (votes_count, total_power_used)
     }
@@ -2967,6 +2999,23 @@ module DAOri::core {
             if (table::contains(&task_registry.tasks, task_id)) {
                 let task = table::borrow(&task_registry.tasks, task_id);
                 if (task.creator == user_address) {
+                    // Calculate validation stats
+                    let total_validations = vector::length(&task.validators);
+                    let mut_validators = &task.validators;
+                    let mut_results = &task.validation_results;
+                    let positive_validations = 0;
+                    let validation_results = vector::empty<bool>();
+                    let _i = 0;
+                    while (_i < total_validations) {
+                        let validator = vector::borrow(mut_validators, _i);
+                        let is_valid = *table::borrow(mut_results, *validator);
+                        if (is_valid) {
+                            positive_validations = positive_validations + 1;
+                        };
+                        vector::push_back(&mut validation_results, is_valid);
+                        _i = _i + 1;
+                    };
+
                     let task_info = TaskInfo {
                         id: task.id,
                         dao_id: task.dao_id,
@@ -2980,6 +3029,11 @@ module DAOri::core {
                         created_at: task.created_at,
                         user_is_creator: true,
                         user_is_assignee: option::contains(&task.assignee, &user_address),
+                        required_validations: task.required_validations,
+                        total_validations,
+                        positive_validations,
+                        validators: *mut_validators,
+                        validation_results,
                     };
                     vector::push_back(&mut user_tasks, task_info);
                 };
@@ -2998,9 +3052,9 @@ module DAOri::core {
         
         if (table::contains(&proposal_registry.proposals_by_dao, dao_id)) {
             let dao_proposal_ids = table::borrow(&proposal_registry.proposals_by_dao, dao_id);
-            let i = 0;
-            while (i < vector::length(dao_proposal_ids)) {
-                let proposal_id = *vector::borrow(dao_proposal_ids, i);
+            let _i = 0;
+            while (_i < vector::length(dao_proposal_ids)) {
+                let proposal_id = *vector::borrow(dao_proposal_ids, _i);
                 let proposal = table::borrow(&proposal_registry.proposals, proposal_id);
                 
                 let proposal_info = ProposalInfo {
@@ -3019,11 +3073,11 @@ module DAOri::core {
                     state: proposal.state,
                     linked_aip: proposal.linked_aip,
                     created_at: proposal.created_at,
-                    user_voted: false, // Generic view - no specific user context
+                    user_voted: false,
                     user_vote: option::none(),
                 };
                 vector::push_back(&mut dao_proposals, proposal_info);
-                i = i + 1;
+                _i = _i + 1;
             };
         };
         
@@ -3038,11 +3092,28 @@ module DAOri::core {
         
         if (table::contains(&task_registry.tasks_by_dao, dao_id)) {
             let dao_task_ids = table::borrow(&task_registry.tasks_by_dao, dao_id);
-            let i = 0;
-            while (i < vector::length(dao_task_ids)) {
-                let task_id = *vector::borrow(dao_task_ids, i);
+            let _i = 0;
+            while (_i < vector::length(dao_task_ids)) {
+                let task_id = *vector::borrow(dao_task_ids, _i);
                 let task = table::borrow(&task_registry.tasks, task_id);
                 
+                // Calculate validation stats
+                let total_validations = vector::length(&task.validators);
+                let mut_validators = &task.validators;
+                let mut_results = &task.validation_results;
+                let positive_validations = 0;
+                let validation_results = vector::empty<bool>();
+                let _j = 0;
+                while (_j < total_validations) {
+                    let validator = vector::borrow(mut_validators, _j);
+                    let is_valid = *table::borrow(mut_results, *validator);
+                    if (is_valid) {
+                        positive_validations = positive_validations + 1;
+                    };
+                    vector::push_back(&mut validation_results, is_valid);
+                    _j = _j + 1;
+                };
+
                 let task_info = TaskInfo {
                     id: task.id,
                     dao_id: task.dao_id,
@@ -3054,11 +3125,16 @@ module DAOri::core {
                     deadline: task.deadline,
                     state: task.state,
                     created_at: task.created_at,
-                    user_is_creator: false, // Generic view - no specific user context
+                    user_is_creator: false,
                     user_is_assignee: false,
+                    required_validations: task.required_validations,
+                    total_validations,
+                    positive_validations,
+                    validators: *mut_validators,
+                    validation_results,
                 };
                 vector::push_back(&mut dao_tasks, task_info);
-                i = i + 1;
+                _i = _i + 1;
             };
         };
         
@@ -3073,9 +3149,9 @@ module DAOri::core {
         
         if (table::contains(&aip_registry.aips_by_author, user_address)) {
             let user_aip_ids = table::borrow(&aip_registry.aips_by_author, user_address);
-            let i = 0;
-            while (i < vector::length(user_aip_ids)) {
-                let aip_id = *vector::borrow(user_aip_ids, i);
+            let _i = 0;
+            while (_i < vector::length(user_aip_ids)) {
+                let aip_id = *vector::borrow(user_aip_ids, _i);
                 let aip = table::borrow(&aip_registry.aips, aip_id);
                 
                 let aip_info = UserAIPInfo {
@@ -3089,7 +3165,7 @@ module DAOri::core {
                     updated_at: aip.updated_at,
                 };
                 vector::push_back(&mut user_aips, aip_info);
-                i = i + 1;
+                _i = _i + 1;
             };
         };
         

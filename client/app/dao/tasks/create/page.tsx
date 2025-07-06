@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, memo, useCallback } from "react";
+import { useState, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,7 @@ const Background = memo(function Background() {
   return (
     <div className="fixed inset-0 z-0">
       <Aurora
-        colorStops={["#8B0000", "#660000", "#8B0000"]}
+        colorStops={["#1a0000", "#000000", "#1a0000"]}
         amplitude={1.2}
         speed={0.3}
         blend={0.8}
@@ -37,15 +37,6 @@ const Background = memo(function Background() {
     </div>
   );
 });
-
-// Add debounce utility
-const debounce = (func: Function, wait: number) => {
-  let timeout: NodeJS.Timeout;
-  return (...args: any[]) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-};
 
 export default function CreateTaskPage() {
   const { account, connected } = useWallet();
@@ -64,7 +55,7 @@ export default function CreateTaskPage() {
     bounty_amount: "",
     required_skills: "",
     deadline: "",
-    validators: "", // New field for validators
+    required_validations: "2", // Default minimum required validations
   });
 
   const categories = [
@@ -84,27 +75,11 @@ export default function CreateTaskPage() {
     { value: "high", label: "High Priority", color: "text-red-500" },
   ];
 
-  // Debounced input handler
-  const debouncedInputChange = useCallback(
-    debounce((field: string, value: string) => {
-      setTaskData((prev) => ({
-        ...prev,
-        [field]: value,
-      }));
-    }, 100),
-    []
-  );
-
   const handleInputChange = (field: string, value: string) => {
-    // Update the input value immediately for UI responsiveness
-    const input = document.querySelector(
-      `[name="${field}"]`
-    ) as HTMLInputElement;
-    if (input) {
-      input.value = value;
-    }
-    // Debounce the state update
-    debouncedInputChange(field, value);
+    setTaskData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -121,24 +96,29 @@ export default function CreateTaskPage() {
     try {
       setIsSubmitting(true);
 
+      // Validate required fields
+      if (!taskData.title.trim() || !taskData.description.trim() || !taskData.bounty_amount || !taskData.deadline) {
+        throw new Error("Please fill in all required fields");
+      }
+
       // Parse required skills into array
       const skillsArray = (taskData.required_skills || "")
         .split(",")
         .map((skill) => skill.trim())
         .filter((skill) => skill.length > 0);
 
-      // Parse validators into array
-      const validatorsArray = (taskData.validators || "")
-        .split(",")
-        .map((addr) => addr.trim())
-        .filter((addr) => addr.length > 0);
-
       // Convert bounty to Octas (1 APT = 100000000 Octas)
-      const bountyInOctas = parseFloat(taskData.bounty_amount) * 100000000;
+      const bountyInOctas = Math.floor(parseFloat(taskData.bounty_amount) * 100000000);
 
       // Convert deadline to Unix timestamp
       const deadlineDate = new Date(taskData.deadline);
       const deadlineTimestamp = Math.floor(deadlineDate.getTime() / 1000);
+
+      // Validate required validations
+      const requiredValidations = parseInt(taskData.required_validations);
+      if (isNaN(requiredValidations) || requiredValidations < 2) {
+        throw new Error("At least 2 validations are required");
+      }
 
       await createTask({
         dao_id: taskData.dao_id,
@@ -147,7 +127,7 @@ export default function CreateTaskPage() {
         bounty_amount: bountyInOctas,
         required_skills: skillsArray,
         deadline: deadlineTimestamp,
-        validators: validatorsArray,
+        required_validations: requiredValidations,
       });
 
       toast({
@@ -174,12 +154,12 @@ export default function CreateTaskPage() {
       <div className="min-h-screen relative">
         <Background />
         <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
-          <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
+          <Card className="bg-black/40 border-red-900/40 backdrop-blur-xl p-8 text-center max-w-lg">
             <CardHeader>
-              <CardTitle className="text-2xl text-white mb-4">
+              <CardTitle className="text-2xl text-red-50 mb-4">
                 Connect Your Wallet
               </CardTitle>
-              <p className="text-gray-300">
+              <p className="text-red-200">
                 Please connect your wallet to create a task.
               </p>
             </CardHeader>
@@ -199,116 +179,113 @@ export default function CreateTaskPage() {
               variant="ghost"
               size="sm"
               onClick={() => router.push("/dao/tasks")}
-              className="text-white hover:bg-white/10"
+              className="text-red-100 hover:bg-red-950/60 hover:text-red-50"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Tasks
             </Button>
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-white">
+              <h1 className="text-3xl md:text-4xl font-bold text-red-50">
                 Create Task
               </h1>
-              <p className="text-gray-400">Create a new task for your DAO</p>
+              <p className="text-red-200">Create a new task for your DAO</p>
             </div>
           </div>
         </InViewMotion>
 
         <InViewMotion>
-          <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
+          <Card className="bg-black/40 border-red-900/40 backdrop-blur-xl">
             <CardContent className="p-6">
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-white font-medium">Title</label>
+                  <label className="text-red-50 font-medium">Title</label>
                   <Input
+                    name="title"
                     value={taskData.title}
                     onChange={(e) => handleInputChange("title", e.target.value)}
                     placeholder="Enter task title"
                     required
-                    className="bg-white/10 border-white/20 text-white placeholder-white/50"
+                    className="bg-red-950/20 border-red-900/40 text-red-50 placeholder-red-200/50 focus:border-red-800"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-white font-medium">Description</label>
+                  <label className="text-red-50 font-medium">Description</label>
                   <Textarea
+                    name="description"
                     value={taskData.description}
-                    onChange={(e) =>
-                      handleInputChange("description", e.target.value)
-                    }
+                    onChange={(e) => handleInputChange("description", e.target.value)}
                     placeholder="Enter task description, requirements, and deliverables"
                     required
-                    className="bg-white/10 border-white/20 text-white placeholder-white/50 min-h-[150px]"
+                    className="bg-red-950/20 border-red-900/40 text-red-50 placeholder-red-200/50 min-h-[150px] focus:border-red-800"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-white font-medium">
-                    Required Skills
-                  </label>
+                  <label className="text-red-50 font-medium">Required Skills</label>
                   <Input
+                    name="required_skills"
                     value={taskData.required_skills}
-                    onChange={(e) =>
-                      handleInputChange("required_skills", e.target.value)
-                    }
+                    onChange={(e) => handleInputChange("required_skills", e.target.value)}
                     placeholder="Enter required skills (comma-separated)"
-                    required
-                    className="bg-white/10 border-white/20 text-white placeholder-white/50"
+                    className="bg-red-950/20 border-red-900/40 text-red-50 placeholder-red-200/50 focus:border-red-800"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-white font-medium">Validators</label>
+                  <label className="text-red-50 font-medium">Bounty Amount (APT)</label>
                   <Input
-                    value={taskData.validators}
-                    onChange={(e) =>
-                      handleInputChange("validators", e.target.value)
-                    }
-                    placeholder="Enter validator addresses (comma-separated)"
-                    className="bg-white/10 border-white/20 text-white placeholder-white/50"
+                    name="bounty_amount"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={taskData.bounty_amount}
+                    onChange={(e) => handleInputChange("bounty_amount", e.target.value)}
+                    placeholder="Enter bounty amount in APT"
+                    required
+                    className="bg-red-950/20 border-red-900/40 text-red-50 placeholder-red-200/50 focus:border-red-800"
                   />
-                  <p className="text-sm text-gray-400">
-                    Optional: Add addresses of validators who can approve task
-                    completion
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-red-50 font-medium">Required Validations</label>
+                  <Input
+                    name="required_validations"
+                    type="number"
+                    min="2"
+                    value={taskData.required_validations}
+                    onChange={(e) => handleInputChange("required_validations", e.target.value)}
+                    placeholder="Minimum number of validations required (min: 2)"
+                    required
+                    className="bg-red-950/20 border-red-900/40 text-red-50 placeholder-red-200/50 focus:border-red-800"
+                  />
+                  <p className="text-sm text-red-300">
+                    Minimum number of positive validations needed to complete the task (minimum: 2)
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-white font-medium">
-                      Bounty (APT)
-                    </label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={taskData.bounty_amount}
-                      onChange={(e) =>
-                        handleInputChange("bounty_amount", e.target.value)
-                      }
-                      placeholder="Enter bounty amount in APT"
-                      required
-                      className="bg-white/10 border-white/20 text-white placeholder-white/50"
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <label className="text-red-50 font-medium">Deadline</label>
+                  <Input
+                    name="deadline"
+                    type="datetime-local"
+                    value={taskData.deadline}
+                    onChange={(e) => handleInputChange("deadline", e.target.value)}
+                    required
+                    className="bg-red-950/20 border-red-900/40 text-red-50 placeholder-red-200/50 focus:border-red-800"
+                  />
+                </div>
 
-                  <div className="space-y-2">
-                    <label className="text-white font-medium">Deadline</label>
-                    <Input
-                      type="datetime-local"
-                      value={taskData.deadline}
-                      onChange={(e) =>
-                        handleInputChange("deadline", e.target.value)
-                      }
-                      required
-                      className="bg-white/10 border-white/20 text-white placeholder-white/50"
-                    />
-                  </div>
+                <div className="mt-6 p-4 bg-red-950/20 border border-red-900/40 rounded-lg">
+                  <p className="text-sm text-red-200">
+                    <span className="font-medium">Note:</span> Creating a task requires a fee of 0.1 APT. This fee helps maintain the platform and prevent spam.
+                  </p>
                 </div>
 
                 <Button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-red-900 to-red-700"
                   disabled={isSubmitting}
+                  className="w-full bg-red-950 hover:bg-red-900 text-red-50 border border-red-800/50 shadow-lg shadow-red-900/20 disabled:bg-red-950/40 disabled:text-red-200/60 disabled:border-red-900/20"
                 >
                   {isSubmitting ? (
                     <>
@@ -316,7 +293,10 @@ export default function CreateTaskPage() {
                       Creating Task...
                     </>
                   ) : (
-                    "Create Task"
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Create Task
+                    </>
                   )}
                 </Button>
               </form>
@@ -327,3 +307,4 @@ export default function CreateTaskPage() {
     </div>
   );
 }
+

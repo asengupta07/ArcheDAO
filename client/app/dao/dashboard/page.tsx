@@ -424,15 +424,15 @@ export default function DashboardPage() {
                 Welcome back to ArcheDAO
               </h1>
               <div className="flex items-center gap-4">
-                <p className="text-gray-400">
+                <div className="text-gray-400">
                   Your role:{" "}
                   <Badge className={getUserTypeColor(userProfile.user_type)}>
                     {getUserTypeLabel(userProfile.user_type)}
                   </Badge>
-                </p>
-                <p className="text-gray-400">
+                </div>
+                <div className="text-gray-400">
                   Member of {userEcosystem.total_daos_joined} DAOs
-                </p>
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-4">
