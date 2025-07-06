@@ -189,7 +189,7 @@ export default function TaskDetailPage() {
   useEffect(() => {
     const fetchTask = async () => {
       if (!connected || !account || !taskId) return;
-      
+
       try {
         setIsLoading(true);
         setError(null);
@@ -335,7 +335,9 @@ export default function TaskDetailPage() {
         throw new Error("Task must be completed to distribute bounty");
       }
       if (task.positive_validations < task.required_validations) {
-        throw new Error(`Task needs at least ${task.required_validations} positive validations`);
+        throw new Error(
+          `Task needs at least ${task.required_validations} positive validations`
+        );
       }
 
       await distributeBounty(task.id);
@@ -519,11 +521,8 @@ export default function TaskDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-2">
-                    {task.required_skills.map((skill, index) => (
-                      <Badge
-                        key={index}
-                        className="bg-red-900/30 text-red-200"
-                      >
+                    {task.required_skills?.map((skill, index) => (
+                      <Badge key={index} className="bg-red-900/30 text-red-200">
                         {skill}
                       </Badge>
                     ))}
@@ -533,84 +532,92 @@ export default function TaskDetailPage() {
             </InViewMotion>
 
             {/* Task Submission Form */}
-            {task.state === TASK_STATUS.ASSIGNED && task.assignee === account.address.toString() && (
-              <InViewMotion>
-                <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
-                  <CardHeader>
-                    <CardTitle className="text-xl text-white">Submit Task</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Dialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button className="w-full bg-green-600 hover:bg-green-700">
-                          <Upload className="w-4 h-4 mr-2" />
-                          Submit Work
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="bg-black/90 border border-red-900/20">
-                        <DialogHeader>
-                          <DialogTitle className="text-xl text-white">Submit Task Work</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4 mt-4">
-                          <div>
-                            <label className="text-sm text-gray-400 mb-2 block">
-                              Submission Hash (e.g. IPFS hash, GitHub commit)
-                            </label>
-                            <Input
-                              value={submissionData.submission_hash}
-                              onChange={(e) =>
-                                setSubmissionData((prev) => ({
-                                  ...prev,
-                                  submission_hash: e.target.value,
-                                }))
-                              }
-                              className="bg-black border-red-900/20 text-white"
-                            />
+            {task.state === TASK_STATUS.ASSIGNED &&
+              task.assignee === account.address.toString() && (
+                <InViewMotion>
+                  <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
+                    <CardHeader>
+                      <CardTitle className="text-xl text-white">
+                        Submit Task
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Dialog
+                        open={isSubmitDialogOpen}
+                        onOpenChange={setIsSubmitDialogOpen}
+                      >
+                        <DialogTrigger asChild>
+                          <Button className="w-full bg-green-600 hover:bg-green-700">
+                            <Upload className="w-4 h-4 mr-2" />
+                            Submit Work
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-black/90 border border-red-900/20">
+                          <DialogHeader>
+                            <DialogTitle className="text-xl text-white">
+                              Submit Task Work
+                            </DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4 mt-4">
+                            <div>
+                              <label className="text-sm text-gray-400 mb-2 block">
+                                Submission Hash (e.g. IPFS hash, GitHub commit)
+                              </label>
+                              <Input
+                                value={submissionData.submission_hash}
+                                onChange={(e) =>
+                                  setSubmissionData((prev) => ({
+                                    ...prev,
+                                    submission_hash: e.target.value,
+                                  }))
+                                }
+                                className="bg-black border-red-900/20 text-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm text-gray-400 mb-2 block">
+                                Completion Proof
+                              </label>
+                              <Textarea
+                                value={submissionData.completion_proof}
+                                onChange={(e) =>
+                                  setSubmissionData((prev) => ({
+                                    ...prev,
+                                    completion_proof: e.target.value,
+                                  }))
+                                }
+                                className="bg-black border-red-900/20 text-white"
+                                rows={4}
+                              />
+                            </div>
+                            <div className="flex justify-end gap-3 mt-6">
+                              <Button
+                                variant="outline"
+                                onClick={() => setIsSubmitDialogOpen(false)}
+                                className="bg-transparent border-red-900/20 text-white hover:bg-red-950/50"
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                onClick={handleSubmitTask}
+                                className="bg-green-600 hover:bg-green-700"
+                                disabled={loading}
+                              >
+                                {loading ? (
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Upload className="w-4 h-4 mr-2" />
+                                )}
+                                Submit
+                              </Button>
+                            </div>
                           </div>
-                          <div>
-                            <label className="text-sm text-gray-400 mb-2 block">
-                              Completion Proof
-                            </label>
-                            <Textarea
-                              value={submissionData.completion_proof}
-                              onChange={(e) =>
-                                setSubmissionData((prev) => ({
-                                  ...prev,
-                                  completion_proof: e.target.value,
-                                }))
-                              }
-                              className="bg-black border-red-900/20 text-white"
-                              rows={4}
-                            />
-                          </div>
-                          <div className="flex justify-end gap-3 mt-6">
-                            <Button
-                              variant="outline"
-                              onClick={() => setIsSubmitDialogOpen(false)}
-                              className="bg-transparent border-red-900/20 text-white hover:bg-red-950/50"
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              onClick={handleSubmitTask}
-                              className="bg-green-600 hover:bg-green-700"
-                              disabled={loading}
-                            >
-                              {loading ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              ) : (
-                                <Upload className="w-4 h-4 mr-2" />
-                              )}
-                              Submit
-                            </Button>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </CardContent>
-                </Card>
-              </InViewMotion>
-            )}
+                        </DialogContent>
+                      </Dialog>
+                    </CardContent>
+                  </Card>
+                </InViewMotion>
+              )}
 
             {/* Submission Details */}
             {task.state >= TASK_STATUS.SUBMITTED && (
@@ -654,14 +661,18 @@ export default function TaskDetailPage() {
               <InViewMotion>
                 <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
                   <CardHeader>
-                    <CardTitle className="text-xl text-white">Validation Status</CardTitle>
+                    <CardTitle className="text-xl text-white">
+                      Validation Status
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
                       {/* Validation Button - Show for anyone who hasn't validated yet */}
-                      {task.state === TASK_STATUS.SUBMITTED && 
-                        account?.address && 
-                        !task.validators.includes(account.address.toString()) && (
+                      {task.state === TASK_STATUS.SUBMITTED &&
+                        account?.address &&
+                        !task.validators.includes(
+                          account.address.toString()
+                        ) && (
                           <>
                             <Button
                               onClick={() => setIsValidateDialogOpen(true)}
@@ -671,21 +682,30 @@ export default function TaskDetailPage() {
                               Validate This Task
                             </Button>
 
-                            <Dialog open={isValidateDialogOpen} onOpenChange={setIsValidateDialogOpen}>
+                            <Dialog
+                              open={isValidateDialogOpen}
+                              onOpenChange={setIsValidateDialogOpen}
+                            >
                               <DialogContent className="bg-black/90 border border-red-900/20">
                                 <DialogHeader>
-                                  <DialogTitle className="text-xl text-white">Validate Task Submission</DialogTitle>
+                                  <DialogTitle className="text-xl text-white">
+                                    Validate Task Submission
+                                  </DialogTitle>
                                 </DialogHeader>
                                 <div className="space-y-4 mt-4">
                                   {/* Submission Details */}
                                   <div>
-                                    <h3 className="text-white font-semibold mb-2">Submission Hash</h3>
+                                    <h3 className="text-white font-semibold mb-2">
+                                      Submission Hash
+                                    </h3>
                                     <div className="font-mono text-sm text-gray-300 bg-white/5 p-3 rounded break-all">
                                       {task.submission_hash}
                                     </div>
                                   </div>
                                   <div>
-                                    <h3 className="text-white font-semibold mb-2">Completion Proof</h3>
+                                    <h3 className="text-white font-semibold mb-2">
+                                      Completion Proof
+                                    </h3>
                                     <div className="text-sm text-gray-300 bg-white/5 p-3 rounded whitespace-pre-wrap">
                                       {task.completion_proof}
                                     </div>
@@ -695,7 +715,9 @@ export default function TaskDetailPage() {
                                   <div className="flex justify-end gap-3 mt-6">
                                     <Button
                                       variant="outline"
-                                      onClick={() => setIsValidateDialogOpen(false)}
+                                      onClick={() =>
+                                        setIsValidateDialogOpen(false)
+                                      }
                                       className="bg-transparent border-red-900/20 text-white hover:bg-red-950/50"
                                     >
                                       Cancel
@@ -735,24 +757,31 @@ export default function TaskDetailPage() {
                               </DialogContent>
                             </Dialog>
                           </>
-                      )}
+                        )}
 
                       {/* Progress Section */}
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-400">Required Validations</span>
+                        <span className="text-gray-400">
+                          Required Validations
+                        </span>
                         <Badge className="bg-red-950/60 text-red-200">
-                          {task.positive_validations} / {task.required_validations}
+                          {task.positive_validations} /{" "}
+                          {task.required_validations}
                         </Badge>
                       </div>
                       <div className="h-2 bg-red-950/20 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-red-900 to-red-700 transition-all duration-300"
                           style={{
-                            width: `${(task.positive_validations / task.required_validations) * 100}%`,
+                            width: `${
+                              (task.positive_validations /
+                                task.required_validations) *
+                              100
+                            }%`,
                           }}
                         />
                       </div>
-                      
+
                       {/* Validators List */}
                       <div className="space-y-2">
                         {task.validators.map((validator, index) => (
@@ -763,7 +792,8 @@ export default function TaskDetailPage() {
                             <span className="font-mono text-gray-300">
                               {validator.slice(0, 6)}...{validator.slice(-4)}
                             </span>
-                            {task.validation_results[validator] !== undefined ? (
+                            {task.validation_results[validator] !==
+                            undefined ? (
                               <Badge
                                 className={
                                   task.validation_results[validator]
@@ -817,9 +847,11 @@ export default function TaskDetailPage() {
                       <p className="text-gray-400 text-sm">Assignee</p>
                       <p className="text-white font-mono">
                         {task.assignee
-                          ? `${task.assignee.slice(0, 6)}...${task.assignee.slice(
-                              -4
-                            )}`
+                          ? `${task.assignee
+                              .toString()
+                              .slice(0, 6)}...${task.assignee
+                              .toString()
+                              .slice(-4)}`
                           : "Unassigned"}
                       </p>
                     </div>
