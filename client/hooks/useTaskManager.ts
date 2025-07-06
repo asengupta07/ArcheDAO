@@ -197,7 +197,7 @@ export const useTaskManager = () => {
 
   // Get complete DAO ecosystem data
   const getCompleteDAOEcosystem = useCallback(async (): Promise<UserDAOEcosystem | null> => {
-    if (!account) return null;
+    if (!account?.address) return null;
 
     try {
       const response = await aptos.view({
@@ -208,7 +208,7 @@ export const useTaskManager = () => {
         },
       });
 
-      if (response && response.length > 0) {
+      if (response && response[0]) {
         const ecosystemData = response[0] as any;
         return {
           user_address: ecosystemData.user_address,
@@ -217,7 +217,7 @@ export const useTaskManager = () => {
           total_proposals_created: Number(ecosystemData.total_proposals_created),
           total_tasks_created: Number(ecosystemData.total_tasks_created),
           total_votes_cast: Number(ecosystemData.total_votes_cast),
-          daos: ecosystemData.daos.map((dao: any) => ({
+          daos: (ecosystemData.daos || []).map((dao: any) => ({
             dao_info: {
               ...dao.dao_info,
               id: Number(dao.dao_info.id),
@@ -230,41 +230,48 @@ export const useTaskManager = () => {
               treasury_balance: Number(dao.dao_info.treasury_balance),
               created_at: Number(dao.dao_info.created_at),
               member_count: Number(dao.dao_info.member_count),
-              settings: {
-                ...dao.dao_info.settings,
-                proposal_creation_fee: Number(dao.dao_info.settings.proposal_creation_fee),
-                task_creation_fee: Number(dao.dao_info.settings.task_creation_fee),
-                minimum_voting_power: Number(dao.dao_info.settings.minimum_voting_power),
-              },
             },
             user_membership: {
               ...dao.user_membership,
               voting_power: Number(dao.user_membership.voting_power),
               join_date: Number(dao.user_membership.join_date),
             },
-            proposals: dao.proposals,
-            tasks: dao.tasks.map((task: any) => ({
+            proposals: (dao.proposals || []).map((proposal: any) => ({
+              ...proposal,
+              id: Number(proposal.id),
+              dao_id: Number(proposal.dao_id),
+              start_time: Number(proposal.start_time),
+              end_time: Number(proposal.end_time),
+              execution_time: Number(proposal.execution_time),
+              state: Number(proposal.state),
+              for_votes: Number(proposal.for_votes),
+              against_votes: Number(proposal.against_votes),
+              abstain_votes: Number(proposal.abstain_votes),
+              quorum: Number(proposal.quorum),
+              created_at: Number(proposal.created_at),
+            })),
+            tasks: (dao.tasks || []).map((task: any) => ({
               id: Number(task.id),
               dao_id: Number(task.dao_id),
               title: task.title,
               description: task.description,
               creator: task.creator,
-              assignee: task.assignee?.vec?.length > 0 ? task.assignee.vec[0] : null,
+              assignee: task.assignee === "0x0" ? null : task.assignee,
               bounty_amount: Number(task.bounty_amount),
-              required_skills: task.required_skills || [],
+              required_skills: task.required_skills,
               deadline: Number(task.deadline),
               state: Number(task.state),
               submission_hash: task.submission_hash === "0x0" ? null : task.submission_hash,
-              validators: task.validators || [],
-              validation_results: task.validation_results || {},
+              validators: task.validators,
+              validation_results: task.validation_results,
               completion_proof: task.completion_proof === "0x0" ? null : task.completion_proof,
               created_at: Number(task.created_at),
-              required_validations: Number(task.required_validations),
-              total_validations: Number(task.total_validations),
-              positive_validations: Number(task.positive_validations),
-              user_is_creator: account.address === task.creator,
-              user_is_assignee: account.address === task.assignee?.vec?.[0],
-              user_is_validator: account.address ? (task.validators || []).includes(account.address) : false,
+              required_validations: Number(task.required_validations || 0),
+              total_validations: Number(task.total_validations || 0),
+              positive_validations: Number(task.positive_validations || 0),
+              user_is_creator: account.address ? task.creator === account.address.toString() : false,
+              user_is_assignee: account.address ? task.assignee === account.address.toString() : false,
+              user_is_validator: account.address ? task.validators.includes(account.address.toString()) : false,
             })),
             user_proposals_created: Number(dao.user_proposals_created),
             user_tasks_created: Number(dao.user_tasks_created),
@@ -293,7 +300,12 @@ export const useTaskManager = () => {
       for (const dao of ecosystem.daos) {
         const task = dao.tasks.find(t => t.id === taskId);
         if (task) {
-          return task;
+          return {
+            ...task,
+            required_validations: task.required_validations || 0,
+            total_validations: task.total_validations || 0,
+            positive_validations: task.positive_validations || 0
+          };
         }
       }
       return null;
@@ -543,103 +555,28 @@ export const useTaskManager = () => {
     }
   };
 
-  // Get a single task by ID
-  const getTask = useCallback(async (taskId: number): Promise<TaskInfo | null> => {
-    try {
-      const response = await aptos.view({
-        payload: {
-          function: CONTRACT_FUNCTIONS.GET_TASK,
-          typeArguments: [],
-          functionArguments: [taskId],
-        },
-      });
-
-      if (!response || !Array.isArray(response)) {
-        return null;
-      }
-
-      const taskData = response as MoveTaskData;
-      return {
-        id: Number(taskData[0] || 0),
-        dao_id: Number(taskData[1] || 0),
-        title: String(taskData[2] || ""),
-        description: String(taskData[3] || ""),
-        creator: String(taskData[4] || ""),
-        assignee: taskData[5] === "0x0" ? null : String(taskData[5] || ""),
-        bounty_amount: Number(taskData[6] || 0),
-        required_skills: Array.isArray(taskData[7]) ? taskData[7] : [],
-        deadline: Number(taskData[8] || 0),
-        state: Number(taskData[9] || 0),
-        submission_hash: taskData[10] === "0x0" ? null : String(taskData[10] || ""),
-        validators: Array.isArray(taskData[11]) ? taskData[11] : [],
-        validation_results: typeof taskData[12] === 'object' ? taskData[12] as Record<string, boolean> : {},
-        completion_proof: taskData[13] === "0x0" ? null : String(taskData[13] || ""),
-        created_at: Number(taskData[14] || 0),
-        // Compute user relationships
-        user_is_creator: account?.address ? String(taskData[4] || "") === account.address.toString() : false,
-        user_is_assignee: account?.address ? String(taskData[5] || "") === account.address.toString() : false,
-        user_is_validator: account?.address ? (Array.isArray(taskData[11]) ? taskData[11].includes(account.address.toString()) : false) : false,
-      };
-    } catch (error) {
-      console.error("Error fetching task:", error);
-      return null;
-    }
-  }, [account?.address]);
-
   // Get all tasks for a DAO
-  // Update getDAOTasks to use memoized state updates
   const getDAOTasks = useCallback(async (daoId: number): Promise<TaskInfo[]> => {
     try {
-      setLoading(true);
-      const response = await aptos.view({
-        payload: {
-          function: CONTRACT_FUNCTIONS.GET_DAO_TASKS,
-          typeArguments: [],
-          functionArguments: [daoId],
-        },
-      });
-
-      if (!response || !Array.isArray(response[0])) {
-        return [];
-      }
-
-      const tasksData = response[0] as MoveTaskData[];
-      return tasksData.map((taskData) => ({
-        id: Number(taskData[0] || 0),
-        dao_id: Number(taskData[1] || 0),
-        title: String(taskData[2] || ""),
-        description: String(taskData[3] || ""),
-        creator: String(taskData[4] || ""),
-        assignee: taskData[5] === "0x0" ? null : String(taskData[5] || ""),
-        bounty_amount: Number(taskData[6] || 0),
-        required_skills: Array.isArray(taskData[7]) ? taskData[7] : [],
-        deadline: Number(taskData[8] || 0),
-        state: Number(taskData[9] || 0),
-        submission_hash: taskData[10] === "0x0" ? null : String(taskData[10] || ""),
-        validators: Array.isArray(taskData[11]) ? taskData[11] : [],
-        validation_results: typeof taskData[12] === 'object' ? taskData[12] as Record<string, boolean> : {},
-        completion_proof: taskData[13] === "0x0" ? null : String(taskData[13] || ""),
-        created_at: Number(taskData[14] || 0),
-        // Compute user relationships
-        user_is_creator: account?.address ? String(taskData[4] || "") === account.address.toString() : false,
-        user_is_assignee: account?.address ? String(taskData[5] || "") === account.address.toString() : false,
-        user_is_validator: account?.address ? (Array.isArray(taskData[11]) ? taskData[11].includes(account.address.toString()) : false) : false,
-      }));
-      updateLoading(true);
       const ecosystem = await getCompleteDAOEcosystem();
-      if (!ecosystem) return [];
+      if (!ecosystem?.daos) return [];
 
       const dao = ecosystem.daos.find(dao => dao.dao_info.id === daoId);
-      const daoTasks = dao?.tasks || [];
+      if (!dao?.tasks) return [];
+
+      const daoTasks = dao.tasks.map(task => ({
+        ...task,
+        required_validations: task.required_validations || 0,
+        total_validations: task.total_validations || 0,
+        positive_validations: task.positive_validations || 0
+      }));
       updateTasks(daoTasks);
       return daoTasks;
     } catch (error) {
       console.error("Error fetching DAO tasks:", error);
       return [];
-    } finally {
-      updateLoading(false);
     }
-  }, [account?.address, getCompleteDAOEcosystem, updateLoading, updateTasks]);
+  }, [account?.address, getCompleteDAOEcosystem, updateTasks]);
 
   // Get tasks created by user
   const getUserCreatedTasks = useCallback(async (): Promise<TaskInfo[]> => {
@@ -650,7 +587,7 @@ export const useTaskManager = () => {
         payload: {
           function: CONTRACT_FUNCTIONS.GET_USER_CREATED_TASKS,
           typeArguments: [],
-          functionArguments: [account.address],
+          functionArguments: [account.address.toString()],
         },
       });
 
@@ -672,27 +609,12 @@ export const useTaskManager = () => {
           validation_results: taskData[12] as Record<string, boolean>,
           completion_proof: taskData[13] === "0x0" ? null : taskData[13],
           created_at: Number(taskData[14]),
-          id: Number(taskData.id),
-          dao_id: Number(taskData.dao_id),
-          title: taskData.title,
-          description: taskData.description,
-          creator: taskData.creator,
-          assignee: taskData.assignee === "0x0" ? null : taskData.assignee,
-          bounty_amount: Number(taskData.bounty_amount),
-          required_skills: taskData.required_skills as string[],
-          deadline: Number(taskData.deadline),
-          state: Number(taskData.state),
-          submission_hash: taskData.submission_hash === "0x0" ? null : taskData.submission_hash,
-          validators: taskData.validators as string[],
-          validation_results: taskData.validation_results as Record<string, boolean>,
-          completion_proof: taskData.completion_proof === "0x0" ? null : taskData.completion_proof,
-          created_at: Number(taskData.created_at),
-          required_validations: Number(taskData.required_validations),
-          total_validations: Number(taskData.total_validations),
-          positive_validations: Number(taskData.positive_validations),
+          required_validations: Number(taskData.required_validations || 0),
+          total_validations: Number(taskData.total_validations || 0),
+          positive_validations: Number(taskData.positive_validations || 0),
           user_is_creator: true,
-          user_is_assignee: account.address === taskData.assignee,
-          user_is_validator: account?.address ? taskData.validators.includes(account.address) : false,
+          user_is_assignee: account.address.toString() === taskData[5],
+          user_is_validator: account?.address ? taskData[11].includes(account.address.toString()) : false,
         }));
       }
       return [];
