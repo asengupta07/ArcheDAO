@@ -361,10 +361,11 @@ export default function GovernancePage() {
         );
         
         if (governorDAOs.length > 0) {
-          setSelectedDAO(governorDAOs[0].dao_info);
-          // Load proposals and tasks for the selected DAO
-          setProposals(governorDAOs[0].proposals || []);
-          setTasks(governorDAOs[0].tasks || []);
+          const selectedDAOInfo = governorDAOs[0].dao_info;
+          setSelectedDAO(selectedDAOInfo);
+          
+          // Load detailed proposals and tasks using specific contract functions
+          await loadDAOProposalsAndTasks(selectedDAOInfo.id);
         }
       } catch (error) {
         console.error("Error loading user ecosystem:", error);
@@ -386,9 +387,64 @@ export default function GovernancePage() {
     }
   };
 
+  const loadDAOProposalsAndTasks = async (daoId: number) => {
+    if (!aptosClient) return;
+
+    try {
+      // Load all proposals for the DAO using get_dao_proposals
+      try {
+        const proposalsData = await aptosClient.view({
+          payload: {
+            function: CONTRACT_FUNCTIONS.GET_DAO_PROPOSALS,
+            functionArguments: [daoId.toString()],
+          },
+        });
+        
+        if (proposalsData && proposalsData[0]) {
+          setProposals(proposalsData[0] as ProposalData[]);
+        } else {
+          setProposals([]);
+        }
+      } catch (error) {
+        console.error("Error loading DAO proposals:", error);
+        setProposals([]);
+      }
+
+      // Load all tasks for the DAO using get_dao_tasks
+      try {
+        const tasksData = await aptosClient.view({
+          payload: {
+            function: CONTRACT_FUNCTIONS.GET_DAO_TASKS,
+            functionArguments: [daoId.toString()],
+          },
+        });
+        
+        if (tasksData && tasksData[0]) {
+          setTasks(tasksData[0] as TaskData[]);
+        } else {
+          setTasks([]);
+        }
+      } catch (error) {
+        console.error("Error loading DAO tasks:", error);
+        setTasks([]);
+      }
+    } catch (error) {
+      console.error("Error loading DAO proposals and tasks:", error);
+      toast({
+        title: "Error Loading DAO Data",
+        description: "Failed to load proposals and tasks for the DAO.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const refreshData = async () => {
     setRefreshing(true);
     await loadUserData();
+    // If there's a selected DAO, also refresh its proposals and tasks
+    if (selectedDAO) {
+      await loadDAOProposalsAndTasks(selectedDAO.id);
+    }
     setRefreshing(false);
   };
 
@@ -629,10 +685,10 @@ export default function GovernancePage() {
     }
   };
 
-  const selectDAO = (dao: any) => {
+  const selectDAO = async (dao: any) => {
     setSelectedDAO(dao.dao_info);
-    setProposals(dao.proposals || []);
-    setTasks(dao.tasks || []);
+    // Load detailed proposals and tasks for the selected DAO
+    await loadDAOProposalsAndTasks(dao.dao_info.id);
   };
 
   const isDAOCreator = selectedDAO && account && selectedDAO.creator === account.address.toString();
@@ -1293,71 +1349,205 @@ export default function GovernancePage() {
                         <p className="text-gray-400">No proposals found for this DAO.</p>
                       </div>
                     ) : (
-                      proposals.slice(0, 10).map((proposal: { title: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; status: number; description: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; proposer: { toString: () => string | any[]; }; id: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; quorum_threshold: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; votes_for: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; total_votes: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; votes_against: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; created_at: number; end_time: number; }, index: React.Key | null | undefined) => (
+                      proposals.slice(0, 10).map((proposal: any, index: React.Key | null | undefined) => (
                         <div
                           key={index}
-                          className="p-4 bg-white/5 rounded-lg border border-white/10"
+                          className="p-6 bg-white/5 rounded-lg border border-white/10"
                         >
-                          <div className="flex justify-between items-start mb-3">
+                          {/* Proposal Header */}
+                          <div className="flex justify-between items-start mb-4">
                             <div className="flex-1">
                               <div className="flex items-center gap-3 mb-2">
-                                <h4 className="text-white font-medium">{proposal.title}</h4>
-                                <Badge className={getProposalStatusColor(proposal.status)}>
-                                  {getProposalStatusLabel(proposal.status)}
+                                <h4 className="text-white font-semibold text-lg">{proposal.title}</h4>
+                                <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                                  Proposal #{proposal.id}
                                 </Badge>
                               </div>
-                              <p className="text-gray-400 text-sm mb-3">
-                                {proposal.description}
+                              <p className="text-gray-300 text-sm">{proposal.description}</p>
+                            </div>
+                            <Badge className={getProposalStatusColor(proposal.state || proposal.status)}>
+                              {getProposalStatusLabel(proposal.state || proposal.status)}
+                            </Badge>
+                          </div>
+
+                          {/* Proposal Details Grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div className="p-3 bg-white/5 rounded-lg">
+                              <p className="text-xs text-gray-400 uppercase tracking-wide">DAO ID</p>
+                              <p className="text-white font-semibold">{proposal.dao_id}</p>
+                            </div>
+                            <div className="p-3 bg-white/5 rounded-lg">
+                              <p className="text-xs text-gray-400 uppercase tracking-wide">Total Votes</p>
+                              <p className="text-white font-semibold text-lg">
+                                {parseInt(proposal.total_votes || "0").toLocaleString()}
                               </p>
-                              <div className="flex items-center gap-4 text-sm">
-                                <span className="text-gray-400">
-                                  Proposer: {proposal.proposer.toString().slice(0, 8)}...{proposal.proposer.toString().slice(-8)}
+                            </div>
+                            <div className="p-3 bg-white/5 rounded-lg">
+                              <p className="text-xs text-gray-400 uppercase tracking-wide">Created</p>
+                              <p className="text-white font-semibold">
+                                {new Date(parseInt(proposal.created_at) * 1000).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Proposer Information */}
+                          <div className="mb-4 p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                            <p className="text-xs text-purple-400 uppercase tracking-wide">Proposed By</p>
+                            <p className="text-purple-200 font-mono text-sm">
+                              {proposal.proposer.slice(0, 12)}...{proposal.proposer.slice(-8)}
+                            </p>
+                          </div>
+
+                          {/* Voting Results */}
+                          <div className="mb-4 p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                            <p className="text-xs text-blue-400 uppercase tracking-wide mb-3">Voting Results</p>
+                            
+                            <div className="grid grid-cols-3 gap-4 mb-3">
+                              <div className="text-center">
+                                <p className="text-green-200 font-bold text-lg">
+                                  {parseInt(proposal.yes_votes || "0").toLocaleString()}
+                                </p>
+                                <p className="text-xs text-green-400">Yes Votes</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-red-200 font-bold text-lg">
+                                  {parseInt(proposal.no_votes || "0").toLocaleString()}
+                                </p>
+                                <p className="text-xs text-red-400">No Votes</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-gray-200 font-bold text-lg">
+                                  {parseInt(proposal.abstain_votes || "0").toLocaleString()}
+                                </p>
+                                <p className="text-xs text-gray-400">Abstain</p>
+                              </div>
+                            </div>
+
+                            {/* Voting Progress Bar */}
+                            <div className="mb-3">
+                              <div className="flex justify-between text-xs text-blue-400 mb-1">
+                                <span>Voting Distribution</span>
+                                <span>
+                                  Total: {parseInt(proposal.total_votes || "0").toLocaleString()} votes
                                 </span>
-                                <span className="text-gray-400">
-                                  ID: {proposal.id}
+                              </div>
+                              <div className="w-full flex rounded-full h-3 overflow-hidden">
+                                <div 
+                                  className="bg-green-500 transition-all duration-300"
+                                  style={{
+                                    width: `${parseInt(proposal.total_votes) > 0 ? (parseInt(proposal.yes_votes || "0") / parseInt(proposal.total_votes)) * 100 : 0}%`
+                                  }}
+                                />
+                                <div 
+                                  className="bg-red-500 transition-all duration-300"
+                                  style={{
+                                    width: `${parseInt(proposal.total_votes) > 0 ? (parseInt(proposal.no_votes || "0") / parseInt(proposal.total_votes)) * 100 : 0}%`
+                                  }}
+                                />
+                                <div 
+                                  className="bg-gray-500 transition-all duration-300"
+                                  style={{
+                                    width: `${parseInt(proposal.total_votes) > 0 ? (parseInt(proposal.abstain_votes || "0") / parseInt(proposal.total_votes)) * 100 : 0}%`
+                                  }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Voting Percentages */}
+                            <div className="grid grid-cols-3 gap-4 text-xs">
+                              <div className="text-center">
+                                <span className="text-green-300">
+                                  {parseInt(proposal.total_votes) > 0 ? 
+                                    Math.round((parseInt(proposal.yes_votes || "0") / parseInt(proposal.total_votes)) * 100) : 0}%
+                                </span>
+                              </div>
+                              <div className="text-center">
+                                <span className="text-red-300">
+                                  {parseInt(proposal.total_votes) > 0 ? 
+                                    Math.round((parseInt(proposal.no_votes || "0") / parseInt(proposal.total_votes)) * 100) : 0}%
+                                </span>
+                              </div>
+                              <div className="text-center">
+                                <span className="text-gray-300">
+                                  {parseInt(proposal.total_votes) > 0 ? 
+                                    Math.round((parseInt(proposal.abstain_votes || "0") / parseInt(proposal.total_votes)) * 100) : 0}%
                                 </span>
                               </div>
                             </div>
                           </div>
-                          
-                          {/* Voting Progress */}
-                          <div className="mt-4">
-                            <div className="flex justify-between text-sm text-gray-300 mb-2">
-                              <span>Voting Progress</span>
-                              <span>Quorum: {proposal.quorum_threshold}%</span>
+
+                          {/* Timeline Information */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div className="p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                              <p className="text-xs text-yellow-400 uppercase tracking-wide">Start Time</p>
+                              <p className="text-yellow-200 text-sm">
+                                {new Date(parseInt(proposal.start_time) * 1000).toLocaleString()}
+                              </p>
                             </div>
-                            <div className="flex gap-2 h-2 rounded-full overflow-hidden">
-                              <div
-                                className="bg-green-500"
-                                style={{ 
-                                  width: `${(Number(proposal.votes_for || 0) / Math.max(Number(proposal.total_votes || 0), 1)) * 100}%` 
-                                }}
-                              />
-                              <div
-                                className="bg-red-500"
-                                style={{ 
-                                  width: `${(Number(proposal.votes_against || 0) / Math.max(Number(proposal.total_votes || 0), 1)) * 100}%` 
-                                }}
-                              />
+                            <div className="p-3 bg-orange-500/10 rounded-lg border border-orange-500/20">
+                              <p className="text-xs text-orange-400 uppercase tracking-wide">End Time</p>
+                              <p className="text-orange-200 text-sm">
+                                {new Date(parseInt(proposal.end_time) * 1000).toLocaleString()}
+                              </p>
+                              <p className="text-xs text-orange-300 mt-1">
+                                {new Date(parseInt(proposal.end_time) * 1000) > new Date() ? 'Active' : 'Ended'}
+                              </p>
                             </div>
-                            <div className="flex justify-between text-sm mt-2">
-                              <span className="text-green-400">
-                                For: {Number(proposal.votes_for || 0)}
-                              </span>
-                              <span className="text-red-400">
-                                Against: {Number(proposal.votes_against || 0)}
-                              </span>
-                              <span className="text-gray-400">
-                                Total: {Number(proposal.total_votes || 0)}
-                              </span>
+                            <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20">
+                              <p className="text-xs text-red-400 uppercase tracking-wide">Execution Time</p>
+                              <p className="text-red-200 text-sm">
+                                {new Date(parseInt(proposal.execution_time) * 1000).toLocaleString()}
+                              </p>
                             </div>
                           </div>
-                          
-                          {/* Proposal Timeline */}
-                          <div className="mt-4 text-xs text-gray-400">
-                            <div className="flex justify-between">
-                              <span>Created: {new Date(proposal.created_at * 1000).toLocaleDateString()}</span>
-                              <span>Ends: {new Date(proposal.end_time * 1000).toLocaleDateString()}</span>
+
+                          {/* User Voting Status */}
+                          <div className="mb-4 p-3 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
+                            <p className="text-xs text-indigo-400 uppercase tracking-wide">Your Voting Status</p>
+                            <div className="flex items-center gap-4 mt-2">
+                              <div className="flex items-center gap-2">
+                                <Badge className={proposal.user_voted ? 
+                                  "bg-green-600/20 text-green-300 border-green-500/30" : 
+                                  "bg-gray-600/20 text-gray-300 border-gray-500/30"
+                                }>
+                                  {proposal.user_voted ? '✓ Voted' : '✗ Not Voted'}
+                                </Badge>
+                              </div>
+                              {proposal.user_voted && proposal.user_vote && proposal.user_vote.vec && proposal.user_vote.vec.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-indigo-300 text-sm">Your vote:</span>
+                                  <Badge className={
+                                    proposal.user_vote.vec[0] === "0" ? "bg-green-600/20 text-green-300 border-green-500/30" :
+                                    proposal.user_vote.vec[0] === "1" ? "bg-red-600/20 text-red-300 border-red-500/30" :
+                                    "bg-gray-600/20 text-gray-300 border-gray-500/30"
+                                  }>
+                                    {proposal.user_vote.vec[0] === "0" ? "Yes" : 
+                                     proposal.user_vote.vec[0] === "1" ? "No" : "Abstain"}
+                                  </Badge>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Linked AIP Information */}
+                          {proposal.linked_aip && proposal.linked_aip.vec && proposal.linked_aip.vec.length > 0 && (
+                            <div className="mb-4 p-3 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
+                              <p className="text-xs text-cyan-400 uppercase tracking-wide">Linked AIP</p>
+                              <p className="text-cyan-200 font-mono text-sm">
+                                AIP #{proposal.linked_aip.vec[0]}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Proposal Timeline Footer */}
+                          <div className="text-xs text-gray-400 border-t border-white/10 pt-3">
+                            <div className="flex justify-between items-center">
+                              <span>
+                                Created: {new Date(parseInt(proposal.created_at) * 1000).toLocaleString()}
+                              </span>
+                              <span>
+                                Duration: {Math.ceil((parseInt(proposal.end_time) - parseInt(proposal.start_time)) / 86400)} days
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -1368,6 +1558,12 @@ export default function GovernancePage() {
                         <p className="text-gray-400 text-sm">
                           And {proposals.length - 10} more proposals...
                         </p>
+                        <Button
+                          onClick={() => window.location.href = '/dao/proposals'}
+                          className="mt-2 bg-gradient-to-r from-red-900 to-red-700"
+                        >
+                          View All Proposals
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -1391,58 +1587,191 @@ export default function GovernancePage() {
                         <p className="text-gray-400">No tasks found for this DAO.</p>
                       </div>
                     ) : (
-                      tasks.slice(0, 10).map((task: { title: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; status: number; description: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; creator: { toString: () => string | any[]; }; assignee: { toString: () => string | any[]; }; id: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; reward: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; deadline: number; created_at: number; completed_at: number; }, index: React.Key | null | undefined) => (
+                      tasks.slice(0, 10).map((task: any, index: React.Key | null | undefined) => (
                         <div
                           key={index}
-                          className="p-4 bg-white/5 rounded-lg border border-white/10"
+                          className="p-6 bg-white/5 rounded-lg border border-white/10"
                         >
-                          <div className="flex justify-between items-start mb-3">
+                          {/* Task Header */}
+                          <div className="flex justify-between items-start mb-4">
                             <div className="flex-1">
                               <div className="flex items-center gap-3 mb-2">
-                                <h4 className="text-white font-medium">{task.title}</h4>
-                                <Badge className={getTaskStatusColor(task.status)}>
-                                  {getTaskStatusLabel(task.status)}
+                                <h4 className="text-white font-semibold text-lg">{task.title}</h4>
+                                <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                                  Task #{task.id}
                                 </Badge>
                               </div>
-                              <p className="text-gray-400 text-sm mb-3">
-                                {task.description}
+                              <p className="text-gray-300 text-sm">{task.description}</p>
+                            </div>
+                            <Badge className={getTaskStatusColor(task.state || task.status)}>
+                              {getTaskStatusLabel(task.state || task.status)}
+                            </Badge>
+                          </div>
+
+                          {/* Task Details Grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div className="p-3 bg-white/5 rounded-lg">
+                              <p className="text-xs text-gray-400 uppercase tracking-wide">Bounty Amount</p>
+                              <p className="text-white font-semibold text-lg">
+                                {(parseInt(task.bounty_amount || task.reward || "0") / 100000000).toFixed(2)} APT
                               </p>
-                              <div className="flex items-center gap-4 text-sm">
-                                <span className="text-gray-400">
-                                  Creator: {task.creator.toString().slice(0, 8)}...{task.creator.toString().slice(-8)}
-                                </span>
-                                {task.assignee && (
-                                  <span className="text-gray-400">
-                                    Assignee: {task.assignee.toString().slice(0, 8)}...{task.assignee.toString().slice(-8)}
-                                  </span>
+                            </div>
+                            <div className="p-3 bg-white/5 rounded-lg">
+                              <p className="text-xs text-gray-400 uppercase tracking-wide">DAO ID</p>
+                              <p className="text-white font-semibold">{task.dao_id}</p>
+                            </div>
+                            <div className="p-3 bg-white/5 rounded-lg">
+                              <p className="text-xs text-gray-400 uppercase tracking-wide">Created</p>
+                              <p className="text-white font-semibold">
+                                {new Date(parseInt(task.created_at) * 1000).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Deadline and Assignment */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div className="p-3 bg-orange-500/10 rounded-lg border border-orange-500/20">
+                              <p className="text-xs text-orange-400 uppercase tracking-wide">Deadline</p>
+                              <p className="text-orange-200 font-semibold">
+                                {new Date(parseInt(task.deadline) * 1000).toLocaleString()}
+                              </p>
+                              <p className="text-xs text-orange-300 mt-1">
+                                {new Date(parseInt(task.deadline) * 1000) > new Date() ? 'Active' : 'Expired'}
+                              </p>
+                            </div>
+                            <div className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                              <p className="text-xs text-blue-400 uppercase tracking-wide">Assignee</p>
+                              {task.assignee && task.assignee.vec && task.assignee.vec.length > 0 ? (
+                                <p className="text-blue-200 font-mono text-sm">
+                                  {task.assignee.vec[0].slice(0, 12)}...{task.assignee.vec[0].slice(-8)}
+                                </p>
+                              ) : (
+                                <p className="text-blue-300 text-sm">Not assigned</p>
+                              )}
+                              <div className="flex items-center gap-2 mt-1">
+                                {task.user_is_assignee && (
+                                  <Badge className="bg-blue-600/20 text-blue-300 text-xs">You are assignee</Badge>
                                 )}
-                                <span className="text-gray-400">
-                                  ID: {task.id}
-                                </span>
+                                {task.user_is_creator && (
+                                  <Badge className="bg-purple-600/20 text-purple-300 text-xs">You created this</Badge>
+                                )}
                               </div>
                             </div>
                           </div>
-                          
-                          {/* Task Details */}
-                          <div className="mt-4 grid grid-cols-2 gap-4">
-                            <div>
-                              <p className="text-sm text-gray-400">Reward</p>
-                              <p className="text-white font-medium">{Number(task.reward || 0)} APT</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-gray-400">Deadline</p>
-                              <p className="text-white font-medium">
-                                {new Date(task.deadline * 1000).toLocaleDateString()}
-                              </p>
-                            </div>
+
+                          {/* Creator Information */}
+                          <div className="mb-4 p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                            <p className="text-xs text-purple-400 uppercase tracking-wide">Created By</p>
+                            <p className="text-purple-200 font-mono text-sm">
+                              {task.creator.slice(0, 12)}...{task.creator.slice(-8)}
+                            </p>
                           </div>
-                          
+
+                          {/* Validation Information */}
+                          {(task.required_validations || task.total_validations || task.positive_validations) && (
+                            <div className="mb-4 p-4 bg-green-500/10 rounded-lg border border-green-500/20">
+                              <p className="text-xs text-green-400 uppercase tracking-wide mb-3">Validation Status</p>
+                              
+                              <div className="grid grid-cols-3 gap-4 mb-3">
+                                <div className="text-center">
+                                  <p className="text-green-200 font-bold text-lg">
+                                    {task.positive_validations || 0}
+                                  </p>
+                                  <p className="text-xs text-green-400">Positive</p>
+                                </div>
+                                <div className="text-center">
+                                  <p className="text-green-200 font-bold text-lg">
+                                    {task.total_validations || 0}
+                                  </p>
+                                  <p className="text-xs text-green-400">Total</p>
+                                </div>
+                                <div className="text-center">
+                                  <p className="text-green-200 font-bold text-lg">
+                                    {task.required_validations || 0}
+                                  </p>
+                                  <p className="text-xs text-green-400">Required</p>
+                                </div>
+                              </div>
+
+                              {/* Validation Progress Bar */}
+                              {task.required_validations && (
+                                <div className="mb-3">
+                                  <div className="flex justify-between text-xs text-green-400 mb-1">
+                                    <span>Validation Progress</span>
+                                    <span>
+                                      {task.positive_validations || 0}/{task.required_validations} 
+                                      ({Math.round(((task.positive_validations || 0) / task.required_validations) * 100)}%)
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-green-900/30 rounded-full h-2">
+                                    <div 
+                                      className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                                      style={{
+                                        width: `${Math.min(((task.positive_validations || 0) / task.required_validations) * 100, 100)}%`
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Validation Results */}
+                              {task.validation_results && task.validation_results.length > 0 && (
+                                <div className="mb-3">
+                                  <p className="text-xs text-green-400 mb-2">Validation Results:</p>
+                                  <div className="flex gap-1">
+                                    {task.validation_results.map((result: boolean, idx: number) => (
+                                      <Badge 
+                                        key={idx} 
+                                        className={result ? 
+                                          "bg-green-600/20 text-green-300 border-green-500/30" : 
+                                          "bg-red-600/20 text-red-300 border-red-500/30"
+                                        }
+                                      >
+                                        {result ? '✓' : '✗'}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Validators */}
+                              {task.validators && task.validators.length > 0 && (
+                                <div>
+                                  <p className="text-xs text-green-400 mb-2">Validators ({task.validators.length}):</p>
+                                  <div className="space-y-1">
+                                    {task.validators.map((validator: string, idx: number) => (
+                                      <div key={idx} className="flex items-center justify-between text-xs">
+                                        <span className="text-green-200 font-mono">
+                                          {validator.slice(0, 12)}...{validator.slice(-8)}
+                                        </span>
+                                        {task.validation_results && task.validation_results[idx] !== undefined && (
+                                          <Badge 
+                                            className={task.validation_results[idx] ? 
+                                              "bg-green-600/20 text-green-300 border-green-500/30" : 
+                                              "bg-red-600/20 text-red-300 border-red-500/30"
+                                            }
+                                          >
+                                            {task.validation_results[idx] ? 'Approved' : 'Rejected'}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* Task Timeline */}
-                          <div className="mt-4 text-xs text-gray-400">
-                            <div className="flex justify-between">
-                              <span>Created: {new Date(task.created_at * 1000).toLocaleDateString()}</span>
-                              {task.completed_at > 0 && (
-                                <span>Completed: {new Date(task.completed_at * 1000).toLocaleDateString()}</span>
+                          <div className="text-xs text-gray-400 border-t border-white/10 pt-3">
+                            <div className="flex justify-between items-center">
+                              <span>
+                                Created: {new Date(parseInt(task.created_at) * 1000).toLocaleString()}
+                              </span>
+                              {task.completed_at && parseInt(task.completed_at) > 0 && (
+                                <span>
+                                  Completed: {new Date(parseInt(task.completed_at) * 1000).toLocaleString()}
+                                </span>
                               )}
                             </div>
                           </div>
@@ -1454,6 +1783,12 @@ export default function GovernancePage() {
                         <p className="text-gray-400 text-sm">
                           And {tasks.length - 10} more tasks...
                         </p>
+                        <Button
+                          onClick={() => window.location.href = '/dao/tasks'}
+                          className="mt-2 bg-gradient-to-r from-red-900 to-red-700"
+                        >
+                          View All Tasks
+                        </Button>
                       </div>
                     )}
                   </div>
