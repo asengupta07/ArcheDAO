@@ -4,6 +4,7 @@ import {
   Aptos, 
   AptosConfig, 
   Network,
+  AccountAddress,
 } from "@aptos-labs/ts-sdk";
 import { CONTRACT_CONFIG, CONTRACT_FUNCTIONS, PROPOSAL_STATUS, USER_TYPES } from "@/config/contract";
 
@@ -134,7 +135,7 @@ export const useProposals = (daoId?: string) => {
         payload: {
           function: CONTRACT_FUNCTIONS.GET_USER_PROFILE,
           typeArguments: [],
-          functionArguments: [account.address],
+          functionArguments: [account.address.toString()],
         },
       });
 
@@ -151,7 +152,6 @@ export const useProposals = (daoId?: string) => {
       });
     } catch (error) {
       console.error("Error fetching user profile:", error);
-      // User might not have a profile yet
       setUserProfile(null);
     }
   };
@@ -165,7 +165,7 @@ export const useProposals = (daoId?: string) => {
         payload: {
           function: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::get_user_dao_membership_info`,
           typeArguments: [],
-          functionArguments: [account.address, Number(daoId)],
+          functionArguments: [account.address.toString(), Number(daoId)],
         },
       });
 
@@ -194,7 +194,7 @@ export const useProposals = (daoId?: string) => {
         payload: {
           function: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::get_user_staking_info`,
           typeArguments: [],
-          functionArguments: [account.address, Number(daoId)],
+          functionArguments: [account.address.toString(), Number(daoId)],
         },
       });
 
@@ -205,7 +205,7 @@ export const useProposals = (daoId?: string) => {
         payload: {
           function: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::get_user_voting_power_breakdown`,
           typeArguments: [],
-          functionArguments: [account.address, Number(daoId)],
+          functionArguments: [account.address.toString(), Number(daoId)],
         },
       });
 
@@ -287,7 +287,7 @@ export const useProposals = (daoId?: string) => {
                 payload: {
                   function: CONTRACT_FUNCTIONS.HAS_VOTED,
                   typeArguments: [],
-                  functionArguments: [Number(proposal.id), account.address],
+                  functionArguments: [Number(proposal.id), account.address.toString()],
                 },
               });
               
@@ -323,22 +323,24 @@ export const useProposals = (daoId?: string) => {
         payload: {
           function: CONTRACT_FUNCTIONS.GET_USER_AIPS,
           typeArguments: [],
-          functionArguments: [account.address],
+          functionArguments: [account.address.toString()],
         },
       });
 
-      const aipsData = result[0] as any[];
-      
-      const aipsList: AIPInfo[] = aipsData.map((aip: any) => ({
-        id: aip.id.toString(),
-        title: aip.title,
-        description: aip.description,
-        category: aip.category,
-        status: aip.status,
-        created_at: aip.created_at.toString(),
-      }));
-
-      setUserAIPs(aipsList);
+      if (result && Array.isArray(result[0])) {
+        const aipsData = result[0] as any[];
+        const aips = aipsData.map(aip => ({
+          id: aip[0],
+          title: aip[1],
+          description: aip[2],
+          category: aip[3],
+          status: aip[4],
+          created_at: aip[5],
+        }));
+        setUserAIPs(aips);
+      } else {
+        setUserAIPs([]);
+      }
     } catch (error) {
       console.error("Error fetching user AIPs:", error);
       setUserAIPs([]);
@@ -385,16 +387,22 @@ export const useProposals = (daoId?: string) => {
 
   // Vote on proposal
   const voteOnProposal = async (proposalId: string, vote: number) => {
-    if (!account?.address) {
-      throw new Error("Wallet not connected");
-    }
-
-    if (!userStakingInfo?.can_vote) {
-      throw new Error("You don't have sufficient voting power to vote");
-    }
+    if (!account?.address) return;
 
     try {
-      const result = await signAndSubmitTransaction({
+      const result = await aptos.view({
+        payload: {
+          function: CONTRACT_FUNCTIONS.HAS_VOTED,
+          typeArguments: [],
+          functionArguments: [Number(proposalId), account.address.toString()],
+        },
+      });
+
+      if (!userStakingInfo?.can_vote) {
+        throw new Error("You don't have sufficient voting power to vote");
+      }
+
+      const voteResult = await signAndSubmitTransaction({
         data: {
           function: CONTRACT_FUNCTIONS.VOTE_ON_PROPOSAL,
           typeArguments: [],
@@ -402,15 +410,15 @@ export const useProposals = (daoId?: string) => {
         },
       });
       
-      await aptos.waitForTransaction({ transactionHash: result.hash });
+      await aptos.waitForTransaction({ transactionHash: voteResult.hash });
       
       // Refresh data after voting
       await fetchProposals();
       
-      return result;
+      return voteResult;
     } catch (error) {
-      console.error("Error voting on proposal:", error);
-      throw error;
+      console.error("Error checking vote status:", error);
+      return;
     }
   };
 

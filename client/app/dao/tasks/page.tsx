@@ -82,8 +82,8 @@ export default function TasksPage() {
 
   const filteredTasks = (tasks || []).filter((task) => {
     if (filter === "all") return true;
-    if (filter === "my-tasks") return task.assignee === account?.address;
-    // Convert status number to string for comparison
+    if (filter === "my-tasks")
+      return task.assignee === account?.address?.toString();
     const statusLabel = getTaskStatusLabel(task.state)
       .toLowerCase()
       .replace(" ", "-");
@@ -235,7 +235,7 @@ export default function TasksPage() {
                     <p className="text-2xl font-bold text-white">
                       {
                         (tasks || []).filter(
-                          (t) => t.assignee === account?.address
+                          (t) => t.assignee === account?.address?.toString()
                         ).length
                       }
                     </p>

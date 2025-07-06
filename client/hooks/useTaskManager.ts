@@ -11,6 +11,33 @@ const config = new AptosConfig({
 });
 const aptos = new Aptos(config);
 
+// Add MoveValue type
+type MoveValue = string | number | boolean | MoveValue[] | { [key: string]: MoveValue };
+
+// Add type for contract response
+type ContractResponse = [any[], ...any[]];
+
+// Add Move type definitions
+type MoveType = string | number | boolean | MoveType[] | { [key: string]: MoveType };
+type MoveArray = MoveType[];
+type MoveTaskData = [
+  number, // id
+  number, // dao_id
+  string, // title
+  string, // description
+  string, // creator
+  string, // assignee
+  number, // bounty_amount
+  string[], // required_skills
+  number, // deadline
+  number, // state
+  string, // submission_hash
+  string[], // validators
+  Record<string, boolean>, // validation_results
+  string, // completion_proof
+  number, // created_at
+];
+
 // Task interfaces
 export interface Task {
   id: number;
@@ -285,7 +312,7 @@ export const useTaskManager = () => {
     }
   };
 
-  // Get task details
+  // Get a single task by ID
   const getTask = useCallback(async (taskId: number): Promise<TaskInfo | null> => {
     try {
       const response = await aptos.view({
@@ -296,30 +323,32 @@ export const useTaskManager = () => {
         },
       });
 
-      if (response && response.length > 0) {
-        const taskData = response[0] as any;
-        return {
-          id: Number(taskData[0]),
-          dao_id: Number(taskData[1]),
-          title: taskData[2],
-          description: taskData[3],
-          creator: taskData[4],
-          assignee: taskData[5] === "0x0" ? null : taskData[5],
-          bounty_amount: Number(taskData[6]),
-          required_skills: taskData[7] as string[],
-          deadline: Number(taskData[8]),
-          state: Number(taskData[9]),
-          submission_hash: taskData[10] === "0x0" ? null : taskData[10],
-          validators: taskData[11] as string[],
-          validation_results: taskData[12] as Record<string, boolean>,
-          completion_proof: taskData[13] === "0x0" ? null : taskData[13],
-          created_at: Number(taskData[14]),
-          user_is_creator: account?.address === taskData[4],
-          user_is_assignee: account?.address === taskData[5],
-          user_is_validator: account?.address ? taskData[11].includes(account.address) : false,
-        };
+      if (!response || !Array.isArray(response)) {
+        return null;
       }
-      return null;
+
+      const taskData = response as MoveTaskData;
+      return {
+        id: Number(taskData[0] || 0),
+        dao_id: Number(taskData[1] || 0),
+        title: String(taskData[2] || ""),
+        description: String(taskData[3] || ""),
+        creator: String(taskData[4] || ""),
+        assignee: taskData[5] === "0x0" ? null : String(taskData[5] || ""),
+        bounty_amount: Number(taskData[6] || 0),
+        required_skills: Array.isArray(taskData[7]) ? taskData[7] : [],
+        deadline: Number(taskData[8] || 0),
+        state: Number(taskData[9] || 0),
+        submission_hash: taskData[10] === "0x0" ? null : String(taskData[10] || ""),
+        validators: Array.isArray(taskData[11]) ? taskData[11] : [],
+        validation_results: typeof taskData[12] === 'object' ? taskData[12] as Record<string, boolean> : {},
+        completion_proof: taskData[13] === "0x0" ? null : String(taskData[13] || ""),
+        created_at: Number(taskData[14] || 0),
+        // Compute user relationships
+        user_is_creator: account?.address ? String(taskData[4] || "") === account.address.toString() : false,
+        user_is_assignee: account?.address ? String(taskData[5] || "") === account.address.toString() : false,
+        user_is_validator: account?.address ? (Array.isArray(taskData[11]) ? taskData[11].includes(account.address.toString()) : false) : false,
+      };
     } catch (error) {
       console.error("Error fetching task:", error);
       return null;
@@ -338,30 +367,32 @@ export const useTaskManager = () => {
         },
       });
 
-      if (response && response.length > 0) {
-        const tasksData = response[0] as any[];
-        return tasksData.map((taskData: any) => ({
-          id: Number(taskData.id),
-          dao_id: Number(taskData.dao_id),
-          title: taskData.title,
-          description: taskData.description,
-          creator: taskData.creator,
-          assignee: taskData.assignee === "0x0" ? null : taskData.assignee,
-          bounty_amount: Number(taskData.bounty_amount),
-          required_skills: taskData.required_skills as string[],
-          deadline: Number(taskData.deadline),
-          state: Number(taskData.state),
-          submission_hash: taskData.submission_hash === "0x0" ? null : taskData.submission_hash,
-          validators: taskData.validators as string[],
-          validation_results: taskData.validation_results as Record<string, boolean>,
-          completion_proof: taskData.completion_proof === "0x0" ? null : taskData.completion_proof,
-          created_at: Number(taskData.created_at),
-          user_is_creator: account?.address === taskData.creator,
-          user_is_assignee: account?.address === taskData.assignee,
-          user_is_validator: account?.address ? taskData.validators.includes(account.address) : false,
-        }));
+      if (!response || !Array.isArray(response[0])) {
+        return [];
       }
-      return [];
+
+      const tasksData = response[0] as MoveTaskData[];
+      return tasksData.map((taskData) => ({
+        id: Number(taskData[0] || 0),
+        dao_id: Number(taskData[1] || 0),
+        title: String(taskData[2] || ""),
+        description: String(taskData[3] || ""),
+        creator: String(taskData[4] || ""),
+        assignee: taskData[5] === "0x0" ? null : String(taskData[5] || ""),
+        bounty_amount: Number(taskData[6] || 0),
+        required_skills: Array.isArray(taskData[7]) ? taskData[7] : [],
+        deadline: Number(taskData[8] || 0),
+        state: Number(taskData[9] || 0),
+        submission_hash: taskData[10] === "0x0" ? null : String(taskData[10] || ""),
+        validators: Array.isArray(taskData[11]) ? taskData[11] : [],
+        validation_results: typeof taskData[12] === 'object' ? taskData[12] as Record<string, boolean> : {},
+        completion_proof: taskData[13] === "0x0" ? null : String(taskData[13] || ""),
+        created_at: Number(taskData[14] || 0),
+        // Compute user relationships
+        user_is_creator: account?.address ? String(taskData[4] || "") === account.address.toString() : false,
+        user_is_assignee: account?.address ? String(taskData[5] || "") === account.address.toString() : false,
+        user_is_validator: account?.address ? (Array.isArray(taskData[11]) ? taskData[11].includes(account.address.toString()) : false) : false,
+      }));
     } catch (error) {
       console.error("Error fetching DAO tasks:", error);
       return [];
@@ -379,31 +410,31 @@ export const useTaskManager = () => {
         payload: {
           function: CONTRACT_FUNCTIONS.GET_USER_CREATED_TASKS,
           typeArguments: [],
-          functionArguments: [account.address],
+          functionArguments: [account.address.toString()],
         },
       });
 
       if (response && response.length > 0) {
         const tasksData = response[0] as any[];
         return tasksData.map((taskData: any) => ({
-          id: Number(taskData.id),
-          dao_id: Number(taskData.dao_id),
-          title: taskData.title,
-          description: taskData.description,
-          creator: taskData.creator,
-          assignee: taskData.assignee === "0x0" ? null : taskData.assignee,
-          bounty_amount: Number(taskData.bounty_amount),
-          required_skills: taskData.required_skills as string[],
-          deadline: Number(taskData.deadline),
-          state: Number(taskData.state),
-          submission_hash: taskData.submission_hash === "0x0" ? null : taskData.submission_hash,
-          validators: taskData.validators as string[],
-          validation_results: taskData.validation_results as Record<string, boolean>,
-          completion_proof: taskData.completion_proof === "0x0" ? null : taskData.completion_proof,
-          created_at: Number(taskData.created_at),
+          id: Number(taskData[0]),
+          dao_id: Number(taskData[1]),
+          title: taskData[2],
+          description: taskData[3],
+          creator: taskData[4],
+          assignee: taskData[5] === "0x0" ? null : taskData[5],
+          bounty_amount: Number(taskData[6]),
+          required_skills: taskData[7] as string[],
+          deadline: Number(taskData[8]),
+          state: Number(taskData[9]),
+          submission_hash: taskData[10] === "0x0" ? null : taskData[10],
+          validators: taskData[11] as string[],
+          validation_results: taskData[12] as Record<string, boolean>,
+          completion_proof: taskData[13] === "0x0" ? null : taskData[13],
+          created_at: Number(taskData[14]),
           user_is_creator: true,
-          user_is_assignee: account.address === taskData.assignee,
-          user_is_validator: account?.address ? taskData.validators.includes(account.address) : false,
+          user_is_assignee: account.address.toString() === taskData[5],
+          user_is_validator: account?.address ? taskData[11].includes(account.address.toString()) : false,
         }));
       }
       return [];

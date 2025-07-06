@@ -26,17 +26,21 @@ import {
 } from "lucide-react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useRouter } from "next/navigation";
-import { Aptos, AptosConfig, Network as AptosNetwork } from "@aptos-labs/ts-sdk";
-import { 
+import {
+  Aptos,
+  AptosConfig,
+  Network as AptosNetwork,
+} from "@aptos-labs/ts-sdk";
+import {
   CONTRACT_CONFIG,
-  CONTRACT_FUNCTIONS, 
-  RESOURCE_TYPES, 
-  getUserTypeLabel, 
+  CONTRACT_FUNCTIONS,
+  RESOURCE_TYPES,
+  getUserTypeLabel,
   getUserTypeColor,
   getProposalStatusLabel,
   getProposalStatusColor,
   getTaskStatusLabel,
-  getTaskStatusColor
+  getTaskStatusColor,
 } from "@/config/contract";
 import { toast } from "@/hooks/use-toast";
 
@@ -101,7 +105,9 @@ export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [userEcosystem, setUserEcosystem] = useState<UserDAOEcosystem | null>(null);
+  const [userEcosystem, setUserEcosystem] = useState<UserDAOEcosystem | null>(
+    null
+  );
   const [aptosClient, setAptosClient] = useState<Aptos | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -125,7 +131,7 @@ export default function DashboardPage() {
 
     try {
       setLoading(true);
-      
+
       // Get user profile
       try {
         const profileResource = await aptosClient.getAccountResource({
@@ -135,7 +141,9 @@ export default function DashboardPage() {
         setUserProfile(profileResource.data as UserProfile);
         console.log("User profile loaded:", profileResource.data);
       } catch (error) {
-        console.log("User profile not found as resource, trying to get from ecosystem data");
+        console.log(
+          "User profile not found as resource, trying to get from ecosystem data"
+        );
         // Don't return early - continue to load ecosystem data
         // The profile might be embedded in the ecosystem data
       }
@@ -148,32 +156,42 @@ export default function DashboardPage() {
             functionArguments: [account.address.toString()],
           },
         });
-        
+
         console.log("Ecosystem data received:", ecosystemData);
-        
+
         if (ecosystemData && ecosystemData[0]) {
           const ecosystem = ecosystemData[0] as UserDAOEcosystem;
           console.log("Parsed ecosystem:", ecosystem);
           console.log("Total DAOs joined:", ecosystem.total_daos_joined);
           console.log("DAOs array:", ecosystem.daos);
           setUserEcosystem(ecosystem);
-          
+
           // If we have ecosystem data but no profile, create a basic profile
-          if (!userProfile && parseInt(ecosystem.total_daos_joined.toString()) > 0) {
+          if (
+            !userProfile &&
+            parseInt(ecosystem.total_daos_joined.toString()) > 0
+          ) {
             console.log("Creating profile from ecosystem data");
             const firstDAO = ecosystem.daos[0];
             if (firstDAO) {
               const basicProfile: UserProfile = {
                 address: account.address.toString(),
-                user_type: firstDAO.user_membership.is_creator ? 2 : 
-                          firstDAO.user_membership.is_governor ? 3 : 0,
+                user_type: firstDAO.user_membership.is_creator
+                  ? 2
+                  : firstDAO.user_membership.is_governor
+                  ? 3
+                  : 0,
                 reputation_score: 100, // Default value
                 contribution_score: 0,
                 is_premium: false,
                 premium_expires: 0,
-                governance_participation: parseInt(ecosystem.total_votes_cast.toString()),
+                governance_participation: parseInt(
+                  ecosystem.total_votes_cast.toString()
+                ),
                 voting_power: parseInt(ecosystem.total_voting_power.toString()),
-                                 created_at: parseInt(firstDAO.user_membership.join_date?.toString() || '0'),
+                created_at: parseInt(
+                  firstDAO.user_membership.join_date?.toString() || "0"
+                ),
               };
               setUserProfile(basicProfile);
               console.log("Created basic profile:", basicProfile);
@@ -196,10 +214,12 @@ export default function DashboardPage() {
       } catch (error) {
         console.error("Error loading user ecosystem:", error);
         console.error("Error details:", error);
-        
+
         // Try to get a simpler view to debug
         try {
-          console.log("Attempting fallback - checking if user has any DAO memberships...");
+          console.log(
+            "Attempting fallback - checking if user has any DAO memberships..."
+          );
           const userDAOs = await aptosClient.view({
             payload: {
               function: `${CONTRACT_CONFIG.MODULE_ADDRESS}::${CONTRACT_CONFIG.MODULE_NAME}::get_daos_by_user`,
@@ -210,10 +230,11 @@ export default function DashboardPage() {
         } catch (fallbackError) {
           console.error("Fallback also failed:", fallbackError);
         }
-        
+
         toast({
           title: "Error Loading DAO Data",
-          description: "Failed to load your DAO ecosystem data. Check console for details.",
+          description:
+            "Failed to load your DAO ecosystem data. Check console for details.",
           variant: "destructive",
         });
       }
@@ -306,7 +327,9 @@ export default function DashboardPage() {
             <CardContent className="p-8">
               <div className="flex items-center justify-center space-x-4">
                 <div className="animate-spin h-8 w-8 border-4 border-red-500/30 border-t-red-500 rounded-full"></div>
-                <span className="text-white text-lg">Loading your DAO data...</span>
+                <span className="text-white text-lg">
+                  Loading your DAO data...
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -315,7 +338,11 @@ export default function DashboardPage() {
     );
   }
 
-  if (!userProfile || !userEcosystem || parseInt(userEcosystem.total_daos_joined) === 0) {
+  if (
+    !userProfile ||
+    !userEcosystem ||
+    parseInt(userEcosystem.total_daos_joined) === 0
+  ) {
     return (
       <div className="min-h-screen relative">
         <div className="fixed inset-0 z-0">
@@ -333,19 +360,18 @@ export default function DashboardPage() {
                 Welcome to ArcheDAO!
               </CardTitle>
               <p className="text-gray-300 mb-6">
-                {!userProfile 
+                {!userProfile
                   ? "You need to join a DAO first to create your profile."
-                  : "Loading your DAO data..."
-                }
+                  : "Loading your DAO data..."}
               </p>
               <div className="flex gap-4 justify-center">
-                <Button 
-                  onClick={() => router.push('/invite')}
+                <Button
+                  onClick={() => router.push("/invite")}
                   className="bg-gradient-to-r from-red-900 to-red-700"
                 >
                   Join a DAO
                 </Button>
-                <Button 
+                <Button
                   onClick={refreshData}
                   disabled={refreshing}
                   variant="outline"
@@ -362,12 +388,12 @@ export default function DashboardPage() {
               {userProfile && (
                 <div className="mt-4 p-3 bg-blue-500/10 rounded-lg">
                   <p className="text-blue-300 text-sm">
-                    Profile found: {getUserTypeLabel(userProfile.user_type)} 
+                    Profile found: {getUserTypeLabel(userProfile.user_type)}
                     (Type: {userProfile.user_type})
                   </p>
                   <p className="text-blue-300 text-xs mt-1">
-                    Voting Power: {userProfile.voting_power} | 
-                    Reputation: {userProfile.reputation_score}
+                    Voting Power: {userProfile.voting_power} | Reputation:{" "}
+                    {userProfile.reputation_score}
                   </p>
                 </div>
               )}
@@ -413,7 +439,8 @@ export default function DashboardPage() {
               <div className="text-right">
                 <p className="text-sm text-gray-400">Connected Wallet</p>
                 <p className="text-white font-mono text-sm">
-                  {account?.address?.toString().slice(0, 6)}...{account?.address?.toString().slice(-4)}
+                  {account?.address?.toString().slice(0, 6)}...
+                  {account?.address?.toString().slice(-4)}
                 </p>
               </div>
               <Button
@@ -533,7 +560,8 @@ export default function DashboardPage() {
               <CardTitle className="text-xl text-white">Your DAOs</CardTitle>
             </CardHeader>
             <CardContent>
-              {userEcosystem.daos.length === 0 || parseInt(userEcosystem.total_daos_joined) === 0 ? (
+              {userEcosystem.daos.length === 0 ||
+              parseInt(userEcosystem.total_daos_joined) === 0 ? (
                 <div className="text-center py-8">
                   <div className="p-6 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
                     <p className="text-yellow-300 mb-4">
@@ -548,13 +576,13 @@ export default function DashboardPage() {
                       <li>The ecosystem function isn't returning your DAOs</li>
                     </ul>
                     <div className="mt-6 flex gap-4 justify-center">
-                      <Button 
-                        onClick={() => router.push('/invite')}
+                      <Button
+                        onClick={() => router.push("/invite")}
                         className="bg-gradient-to-r from-red-900 to-red-700"
                       >
                         Try Joining a DAO
                       </Button>
-                      <Button 
+                      <Button
                         onClick={refreshData}
                         disabled={refreshing}
                         variant="outline"
@@ -568,83 +596,97 @@ export default function DashboardPage() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {userEcosystem.daos.map((daoEntry, index) => (
-                  <div key={index} className="bg-white/5 rounded-lg p-6 border border-white/10">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-white">
-                          {daoEntry.dao_info.name}
-                        </h3>
-                        <p className="text-sm text-gray-400 mt-1">
-                          {daoEntry.dao_info.description}
-                        </p>
+                    <div
+                      key={index}
+                      className="bg-white/5 rounded-lg p-6 border border-white/10"
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold text-white">
+                            {daoEntry.dao_info.name}
+                          </h3>
+                          <p className="text-sm text-gray-400 mt-1">
+                            {daoEntry.dao_info.description}
+                          </p>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          {daoEntry.user_membership.is_creator && (
+                            <Badge className="bg-yellow-500/20 text-yellow-400 text-xs">
+                              Creator
+                            </Badge>
+                          )}
+                          {daoEntry.user_membership.is_governor && (
+                            <Badge className="bg-red-500/20 text-red-400 text-xs">
+                              Governor
+                            </Badge>
+                          )}
+                          {daoEntry.user_membership.is_member && (
+                            <Badge className="bg-blue-500/20 text-blue-400 text-xs">
+                              Member
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-2">
-                        {daoEntry.user_membership.is_creator && (
-                          <Badge className="bg-yellow-500/20 text-yellow-400 text-xs">
-                            Creator
-                          </Badge>
-                        )}
-                        {daoEntry.user_membership.is_governor && (
-                          <Badge className="bg-red-500/20 text-red-400 text-xs">
-                            Governor
-                          </Badge>
-                        )}
-                        {daoEntry.user_membership.is_member && (
-                          <Badge className="bg-blue-500/20 text-blue-400 text-xs">
-                            Member
-                          </Badge>
-                        )}
+
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <p className="text-sm text-gray-400">Members</p>
+                          <p className="text-white font-medium">
+                            {daoEntry.dao_info.member_count}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400">
+                            Your Voting Power
+                          </p>
+                          <p className="text-white font-medium">
+                            {daoEntry.user_membership.voting_power}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400">Proposals</p>
+                          <p className="text-white font-medium">
+                            {daoEntry.dao_info.proposal_count}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400">Tasks</p>
+                          <p className="text-white font-medium">
+                            {daoEntry.dao_info.task_count}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <p className="text-sm text-gray-400">Members</p>
-                        <p className="text-white font-medium">{daoEntry.dao_info.member_count}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-400">Your Voting Power</p>
-                        <p className="text-white font-medium">{daoEntry.user_membership.voting_power}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-400">Proposals</p>
-                        <p className="text-white font-medium">{daoEntry.dao_info.proposal_count}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-400">Tasks</p>
-                        <p className="text-white font-medium">{daoEntry.dao_info.task_count}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => router.push('/dao/proposals')}
-                        className="bg-gradient-to-r from-red-900 to-red-700"
-                      >
-                        View Proposals
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => router.push('/dao/tasks')}
-                        variant="outline"
-                        className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                      >
-                        View Tasks
-                      </Button>
-                      {(daoEntry.user_membership.is_creator || daoEntry.user_membership.is_governor) && (
+
+                      <div className="flex gap-2">
                         <Button
                           size="sm"
-                          onClick={() => router.push('/dao/governor')}
-                          className="bg-gradient-to-r from-yellow-900 to-yellow-700"
+                          onClick={() => router.push("/dao/proposals")}
+                          className="bg-gradient-to-r from-red-900 to-red-700"
                         >
-                          <Crown className="w-4 h-4 mr-1" />
-                          Manage
+                          View Proposals
                         </Button>
-                      )}
+                        <Button
+                          size="sm"
+                          onClick={() => router.push("/dao/tasks")}
+                          variant="outline"
+                          className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                        >
+                          View Tasks
+                        </Button>
+                        {(daoEntry.user_membership.is_creator ||
+                          daoEntry.user_membership.is_governor) && (
+                          <Button
+                            size="sm"
+                            onClick={() => router.push("/dao/governor")}
+                            className="bg-gradient-to-r from-yellow-900 to-yellow-700"
+                          >
+                            <Crown className="w-4 h-4 mr-1" />
+                            Manage
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
                 </div>
               )}
             </CardContent>
@@ -655,47 +697,67 @@ export default function DashboardPage() {
         <InViewMotion>
           <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
             <CardHeader>
-              <CardTitle className="text-xl text-white">Quick Actions</CardTitle>
+              <CardTitle className="text-xl text-white">
+                Quick Actions
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white/5 rounded-lg p-6 border border-white/10 hover:border-red-400/50 transition-colors cursor-pointer"
-                     onClick={() => router.push('/dao/proposals')}>
+                <div
+                  className="bg-white/5 rounded-lg p-6 border border-white/10 hover:border-red-400/50 transition-colors cursor-pointer"
+                  onClick={() => router.push("/dao/proposals")}
+                >
                   <div className="flex items-center gap-4 mb-4">
                     <div className="p-3 rounded-lg bg-gradient-to-br from-red-900 to-red-700">
                       <Vote className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-white">View Proposals</h3>
-                      <p className="text-sm text-gray-400">Review and vote on active proposals</p>
+                      <h3 className="text-lg font-semibold text-white">
+                        View Proposals
+                      </h3>
+                      <p className="text-sm text-gray-400">
+                        Review and vote on active proposals
+                      </p>
                     </div>
                   </div>
                   <ArrowRight className="w-5 h-5 text-red-400 ml-auto" />
                 </div>
 
-                <div className="bg-white/5 rounded-lg p-6 border border-white/10 hover:border-red-400/50 transition-colors cursor-pointer"
-                     onClick={() => router.push('/dao/tasks')}>
+                <div
+                  className="bg-white/5 rounded-lg p-6 border border-white/10 hover:border-red-400/50 transition-colors cursor-pointer"
+                  onClick={() => router.push("/dao/tasks")}
+                >
                   <div className="flex items-center gap-4 mb-4">
                     <div className="p-3 rounded-lg bg-gradient-to-br from-red-900 to-red-700">
                       <Target className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-white">Task Management</h3>
-                      <p className="text-sm text-gray-400">Create and manage DAO tasks</p>
+                      <h3 className="text-lg font-semibold text-white">
+                        Task Management
+                      </h3>
+                      <p className="text-sm text-gray-400">
+                        Create and manage DAO tasks
+                      </p>
                     </div>
                   </div>
                   <ArrowRight className="w-5 h-5 text-red-400 ml-auto" />
                 </div>
 
-                <div className="bg-white/5 rounded-lg p-6 border border-white/10 hover:border-red-400/50 transition-colors cursor-pointer"
-                     onClick={() => router.push('/invite')}>
+                <div
+                  className="bg-white/5 rounded-lg p-6 border border-white/10 hover:border-red-400/50 transition-colors cursor-pointer"
+                  onClick={() => router.push("/invite")}
+                >
                   <div className="flex items-center gap-4 mb-4">
                     <div className="p-3 rounded-lg bg-gradient-to-br from-red-900 to-red-700">
                       <Users className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-white">Join More DAOs</h3>
-                      <p className="text-sm text-gray-400">Use invite codes to join additional DAOs</p>
+                      <h3 className="text-lg font-semibold text-white">
+                        Join More DAOs
+                      </h3>
+                      <p className="text-sm text-gray-400">
+                        Use invite codes to join additional DAOs
+                      </p>
                     </div>
                   </div>
                   <ArrowRight className="w-5 h-5 text-red-400 ml-auto" />
