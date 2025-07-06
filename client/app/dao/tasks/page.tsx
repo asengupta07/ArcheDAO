@@ -189,7 +189,7 @@ export default function TasksPage() {
     try {
       await assignTask(taskId);
       // Refresh tasks after assignment
-      const daoTasks = await getDAOTasks(daoId);
+      const daoTasks = await getDAOTasks(daoId!);
       setTasks(daoTasks);
     } catch (error) {
       console.error("Error assigning task:", error);
