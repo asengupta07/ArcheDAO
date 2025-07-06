@@ -77,11 +77,8 @@ export default function OnboardingPage() {
     try {
       setIsLoading(true);
 
-      // Parse governors string to vector of addresses
-      const governors = (formData.initialGovernors || "")
-        .split(",")
-        .map((addr) => addr.trim())
-        .filter((addr) => addr.length > 0);
+      // Pass empty array for governors
+      const governors: string[] = [];
 
       const transaction: any = {
         data: {
@@ -277,20 +274,6 @@ export default function OnboardingPage() {
                 className="w-full px-4 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg text-white placeholder-white/50 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none transition-all duration-200"
                 placeholder="Delay before executing passed proposals"
                 required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-white font-medium">
-                Initial Governors
-              </label>
-              <input
-                type="text"
-                name="initialGovernors"
-                value={formData.initialGovernors}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg text-white placeholder-white/50 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none transition-all duration-200"
-                placeholder="Enter governor addresses (comma-separated)"
               />
             </div>
           </div>

@@ -175,6 +175,8 @@ export default function GovernancePage() {
   const [proposals, setProposals] = useState<ProposalData[]>([]);
   const [tasks, setTasks] = useState<TaskData[]>([]);
   const [autoJoining, setAutoJoining] = useState(false);
+  const [promotingMembers, setPromotingMembers] = useState<string[]>([]);
+  const [autoPromoteNewMembers, setAutoPromoteNewMembers] = useState(false);
 
   // Utility function to safely access selectedDAO properties
   const safeDAOProperty = (property: keyof DAOInfo, fallback: any = null) => {
@@ -452,6 +454,113 @@ export default function GovernancePage() {
         description: "Failed to promote member to governor.",
         variant: "destructive",
       });
+    }
+  };
+
+  const promoteMemberToGovernor = async (memberAddress: string) => {
+    if (!selectedDAO || !account || !memberAddress) return;
+
+    // Check if member is already a governor
+    if (selectedDAO.governors?.includes(memberAddress)) {
+      toast({
+        title: "Already a Governor",
+        description: "This member is already a governor.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setPromotingMembers(prev => [...prev, memberAddress]);
+
+      const response = await signAndSubmitTransaction({
+        sender: account.address,
+        data: {
+          function: CONTRACT_FUNCTIONS.PROMOTE_TO_GOVERNOR,
+          functionArguments: [selectedDAO.id, memberAddress],
+        },
+      });
+
+      await aptosClient?.waitForTransaction({ 
+        transactionHash: response.hash 
+      });
+
+      toast({
+        title: "Member Promoted",
+        description: `Successfully promoted ${memberAddress.slice(0, 8)}...${memberAddress.slice(-8)} to governor.`,
+      });
+      
+      await refreshData();
+    } catch (error) {
+      console.error("Error promoting member:", error);
+      toast({
+        title: "Promotion Failed",
+        description: "Failed to promote member to governor.",
+        variant: "destructive",
+      });
+    } finally {
+      setPromotingMembers(prev => prev.filter(addr => addr !== memberAddress));
+    }
+  };
+
+  const promoteAllMembersToGovernors = async () => {
+    if (!selectedDAO || !account) return;
+
+    const membersToPromote = selectedDAO.members?.filter(member => 
+      !selectedDAO.governors?.includes(member) && member !== selectedDAO.creator
+    ) || [];
+
+    if (membersToPromote.length === 0) {
+      toast({
+        title: "No Members to Promote",
+        description: "All members are already governors.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setPromotingMembers(membersToPromote);
+
+      // Promote each member individually
+      for (const memberAddress of membersToPromote) {
+        try {
+          const response = await signAndSubmitTransaction({
+            sender: account.address,
+            data: {
+              function: CONTRACT_FUNCTIONS.PROMOTE_TO_GOVERNOR,
+              functionArguments: [selectedDAO.id, memberAddress],
+            },
+          });
+
+          await aptosClient?.waitForTransaction({ 
+            transactionHash: response.hash 
+          });
+
+          toast({
+            title: "Member Promoted",
+            description: `Promoted ${memberAddress.slice(0, 8)}...${memberAddress.slice(-8)} to governor.`,
+          });
+        } catch (error) {
+          console.error(`Error promoting ${memberAddress}:`, error);
+          toast({
+            title: "Promotion Failed",
+            description: `Failed to promote ${memberAddress.slice(0, 8)}...${memberAddress.slice(-8)}.`,
+            variant: "destructive",
+          });
+        }
+      }
+      
+      await refreshData();
+    } catch (error) {
+      console.error("Error promoting all members:", error);
+      toast({
+        title: "Bulk Promotion Failed",
+        description: "Failed to promote all members to governors.",
+        variant: "destructive",
+      });
+    } finally {
+      setPromotingMembers([]);
     }
   };
 
@@ -977,6 +1086,80 @@ export default function GovernancePage() {
               )}
             </div>
 
+            {/* Bulk Member Management */}
+            {isDAOCreator && (
+              <div className="mb-8">
+                <InViewMotion>
+                  <Card className="bg-white/5 border-blue-400/20 backdrop-blur-xl">
+                    <CardHeader>
+                      <CardTitle className="text-xl text-white flex items-center gap-2">
+                        <Users className="w-5 h-5 text-blue-400" />
+                        Bulk Member Management
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <p className="text-gray-400 text-sm">
+                        Manage multiple members at once or set automatic promotion rules
+                      </p>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Button
+                          onClick={promoteAllMembersToGovernors}
+                          disabled={promotingMembers.length > 0 || !selectedDAO?.members?.length}
+                          className="bg-gradient-to-r from-blue-900 to-blue-700 relative"
+                        >
+                          {promotingMembers.length > 0 ? (
+                            <>
+                              <div className="animate-spin h-4 w-4 border-2 border-white/30 border-t-white rounded-full mr-2"></div>
+                              Promoting All...
+                            </>
+                          ) : (
+                            <>
+                              <UserCheck className="w-4 h-4 mr-2" />
+                              Promote All Members
+                            </>
+                          )}
+                        </Button>
+                        
+                        <Button
+                          onClick={refreshData}
+                          className="bg-gradient-to-r from-gray-900 to-gray-700"
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Refresh Member List
+                        </Button>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
+                        <div>
+                          <p className="text-white font-medium">Auto-promote New Members</p>
+                          <p className="text-gray-400 text-sm">Automatically promote new members to governors</p>
+                        </div>
+                        <Button
+                          onClick={() => setAutoPromoteNewMembers(!autoPromoteNewMembers)}
+                          variant={autoPromoteNewMembers ? "default" : "outline"}
+                          className={autoPromoteNewMembers ? 
+                            "bg-gradient-to-r from-green-900 to-green-700" : 
+                            "bg-white/10 border-white/20 text-white hover:bg-white/20"
+                          }
+                        >
+                          {autoPromoteNewMembers ? "Enabled" : "Disabled"}
+                        </Button>
+                      </div>
+                      
+                      <div className="text-sm text-gray-400">
+                        Regular members that can be promoted: {
+                          selectedDAO?.members?.filter(member => 
+                            !selectedDAO.governors?.includes(member) && member !== selectedDAO.creator
+                          )?.length || 0
+                        }
+                      </div>
+                    </CardContent>
+                  </Card>
+                </InViewMotion>
+              </div>
+            )}
+
             {/* DAO Creator Only - Advanced Management */}
             {isDAOCreator && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -1278,49 +1461,118 @@ export default function GovernancePage() {
               </Card>
             </InViewMotion>
 
-            {/* Recent Members */}
+            {/* All Members with Management */}
             <InViewMotion>
               <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl mt-6">
                 <CardHeader>
                   <CardTitle className="text-xl text-white flex items-center gap-2">
                     <Users className="w-5 h-5" />
-                    Recent Members
+                    All Members ({selectedDAO.members?.length || 0})
                   </CardTitle>
+                  <CardDescription className="text-gray-400">
+                    Manage member roles and permissions
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {selectedDAO.members?.slice(0, 10).map((member, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 bg-white/5 rounded-lg"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-gradient-to-br from-blue-900 to-blue-700">
-                            <Users className="w-4 h-4 text-white" />
+                    {selectedDAO.members?.map((member, index) => {
+                      const isGovernor = selectedDAO.governors?.includes(member);
+                      const isCreator = member === selectedDAO.creator;
+                      const isPromoting = promotingMembers.includes(member);
+                      
+                      return (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg ${
+                              isCreator ? 'bg-gradient-to-br from-yellow-900 to-yellow-700' :
+                              isGovernor ? 'bg-gradient-to-br from-red-900 to-red-700' :
+                              'bg-gradient-to-br from-blue-900 to-blue-700'
+                            }`}>
+                              {isCreator ? (
+                                <Star className="w-4 h-4 text-white" />
+                              ) : isGovernor ? (
+                                <Crown className="w-4 h-4 text-white" />
+                              ) : (
+                                <Users className="w-4 h-4 text-white" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-white font-mono text-sm">
+                                {member.slice(0, 12)}...{member.slice(-12)}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                {isCreator && (
+                                  <Badge className="bg-yellow-500/20 text-yellow-400 text-xs">
+                                    Creator
+                                  </Badge>
+                                )}
+                                {isGovernor && (
+                                  <Badge className="bg-red-500/20 text-red-400 text-xs">
+                                    Governor
+                                  </Badge>
+                                )}
+                                {!isGovernor && !isCreator && (
+                                  <Badge className="bg-blue-500/20 text-blue-400 text-xs">
+                                    Member
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-white font-mono text-sm">
-                              {member.slice(0, 8)}...{member.slice(-8)}
-                            </p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge className="bg-blue-500/20 text-blue-400 text-xs">
-                                Member
-                              </Badge>
-                              {selectedDAO.governors?.includes(member) && (
-                                <Badge className="bg-red-500/20 text-red-400 text-xs">
-                                  Governor
+                          
+                          {/* Action buttons for DAO Creator */}
+                          {isDAOCreator && (
+                            <div className="flex items-center gap-2">
+                              {!isGovernor && !isCreator && (
+                                <Button
+                                  onClick={() => promoteMemberToGovernor(member)}
+                                  disabled={isPromoting}
+                                  size="sm"
+                                  className="bg-gradient-to-r from-green-900 to-green-700 hover:from-green-800 hover:to-green-600"
+                                >
+                                  {isPromoting ? (
+                                    <>
+                                      <div className="animate-spin h-3 w-3 border-2 border-white/30 border-t-white rounded-full mr-1"></div>
+                                      Promoting...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Crown className="w-3 h-3 mr-1" />
+                                      Promote
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                              
+                              {isGovernor && !isCreator && (
+                                <Button
+                                  onClick={() => demoteGovernor(member)}
+                                  size="sm"
+                                  variant="destructive"
+                                  className="bg-red-600/20 hover:bg-red-600/30"
+                                >
+                                  <UserMinus className="w-3 h-3 mr-1" />
+                                  Demote
+                                </Button>
+                              )}
+                              
+                              {isCreator && (
+                                <Badge className="bg-yellow-600/20 text-yellow-400 text-xs px-2 py-1">
+                                  Owner
                                 </Badge>
                               )}
                             </div>
-                          </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
-                    {selectedDAO.members && selectedDAO.members.length > 10 && (
-                      <div className="text-center pt-4">
-                        <p className="text-gray-400 text-sm">
-                          And {(selectedDAO.members?.length || 0) - 10} more members...
-                        </p>
+                      );
+                    })}
+                    
+                    {(!selectedDAO.members || selectedDAO.members.length === 0) && (
+                      <div className="text-center py-8">
+                        <p className="text-gray-400">No members found.</p>
                       </div>
                     )}
                   </div>
