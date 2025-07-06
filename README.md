@@ -35,7 +35,7 @@ The stack is laser-focused on **developer experience**: zero ceremony TypeScript
 ## Architecture Overview
 ```mermaid
 flowchart TD
-  subgraph On-chain (Aptos)
+  subgraph On-chain Aptos
     Core["DAOri::core module"]
   end
   subgraph Off-chain
