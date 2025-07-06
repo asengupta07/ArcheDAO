@@ -23,6 +23,7 @@ import {
   Shield,
   RefreshCw,
   Crown,
+  MessageSquare,
 } from "lucide-react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useRouter } from "next/navigation";
@@ -43,6 +44,8 @@ import {
   getTaskStatusColor,
 } from "@/config/contract";
 import { toast } from "@/hooks/use-toast";
+import { DAOChatModal } from "@/components/ui/dao-chat-modal";
+import { DAOAnalyticsModal } from "@/components/ui/dao-analytics-modal";
 
 interface UserProfile {
   address: string;
@@ -110,6 +113,9 @@ export default function DashboardPage() {
   );
   const [aptosClient, setAptosClient] = useState<Aptos | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
+  const [selectedDAO, setSelectedDAO] = useState<{ id: string; name: string } | null>(null);
 
   // Initialize Aptos client
   useEffect(() => {
@@ -436,6 +442,14 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="flex items-center gap-4">
+              <Button
+                onClick={() => setIsAnalyticsOpen(true)}
+                className="bg-gradient-to-r from-red-900 to-red-700"
+                size="sm"
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Analytics
+              </Button>
               <div className="text-right">
                 <p className="text-sm text-gray-400">Connected Wallet</p>
                 <p className="text-white font-mono text-sm">
@@ -557,7 +571,26 @@ export default function DashboardPage() {
         <InViewMotion>
           <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl mb-8">
             <CardHeader>
-              <CardTitle className="text-xl text-white">Your DAOs</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-xl text-white">Your DAOs</CardTitle>
+                {userEcosystem?.daos[0] && (
+                  <Button
+                    onClick={() => {
+                      const firstDAO = userEcosystem.daos[0];
+                      setSelectedDAO({
+                        id: firstDAO.dao_info.id.toString(),
+                        name: firstDAO.dao_info.name
+                      });
+                      setIsChatOpen(true);
+                    }}
+                    className="bg-gradient-to-r from-red-900 to-red-700"
+                    size="sm"
+                  >
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    Chat with DAO
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {userEcosystem.daos.length === 0 ||
@@ -767,6 +800,20 @@ export default function DashboardPage() {
           </Card>
         </InViewMotion>
       </div>
+
+      {selectedDAO && (
+        <DAOChatModal
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          daoId={selectedDAO.id}
+          daoName={selectedDAO.name}
+        />
+      )}
+
+      <DAOAnalyticsModal
+        isOpen={isAnalyticsOpen}
+        onClose={() => setIsAnalyticsOpen(false)}
+      />
     </div>
   );
 }
