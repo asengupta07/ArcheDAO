@@ -432,7 +432,7 @@ export default function ProposalsPage() {
         <GradientBackground />
       </div>
 
-      <div className="relative z-10 container mx-auto px-8 py-[6rem] mt-4 max-w-[1920px]">
+      <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-24">
         {/* Header */}
         <InViewMotion>
           <div className="flex items-center justify-between mb-8">
@@ -446,7 +446,7 @@ export default function ProposalsPage() {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Dashboard
               </Button>
-              <div>
+              <div className="mt-10">
                 <h1 className="text-3xl md:text-4xl font-bold text-white">
                   Proposals
                 </h1>
@@ -599,8 +599,8 @@ export default function ProposalsPage() {
 
         {/* Staking & Voting Power Section */}
         <InViewMotion>
-          <div className="mb-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <div className="xl:col-span-2">
+          <div className="mb-12 w-full flex justify-center px-4">
+            <div className="w-full max-w-4xl">
               <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl h-full">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-white">
@@ -618,7 +618,7 @@ export default function ProposalsPage() {
                             ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
                             : userMembership?.is_governor
                             ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
-                            : userStakingInfo?.can_vote
+                            : userMembership?.is_member
                             ? "bg-green-500/20 text-green-400 border-green-500/30"
                             : "bg-red-500/20 text-red-400 border-red-500/30"
                         }
@@ -638,7 +638,7 @@ export default function ProposalsPage() {
                         ? "Create Proposals, Govern DAO, Vote"
                         : userMembership?.is_governor
                         ? "Govern DAO, Vote"
-                        : userStakingInfo?.can_vote
+                        : userMembership?.is_member
                         ? "Vote"
                         : "View Only"}
                     </div>
@@ -763,17 +763,17 @@ export default function ProposalsPage() {
                   <div className="flex items-center justify-between">
                     <Badge
                       className={
-                        userStakingInfo?.can_vote
+                        userMembership?.is_member
                           ? "bg-green-500/20 text-green-400 border-green-500/30"
                           : "bg-red-500/20 text-red-400 border-red-500/30"
                       }
                     >
-                      {userStakingInfo?.can_vote
+                      {userMembership?.is_member
                         ? "✓ Can Vote"
                         : "✗ Cannot Vote"}
                     </Badge>
 
-                    {!userStakingInfo?.can_vote && (
+                    {!userMembership?.is_member && (
                       <div className="flex items-center gap-1 text-yellow-400 text-sm">
                         <Info className="w-4 h-4" />
                         <span>Stake to gain voting power</span>
@@ -945,7 +945,7 @@ export default function ProposalsPage() {
         </InViewMotion>
 
         {/* Filters */}
-        <InViewMotion>
+        <InViewMotion className="py-10 px-24">
           <div className="flex gap-4 mb-6">
             {["all", "active", "pending", "passed", "rejected"].map((status) => (
               <Button
@@ -966,7 +966,7 @@ export default function ProposalsPage() {
 
         {/* Loading State */}
         {loading && !proposals.length && (
-          <InViewMotion>
+          <InViewMotion className="px-24">
             <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
               <CardContent className="p-12 text-center">
                 <Loader2 className="w-16 h-16 text-gray-400 mx-auto mb-4 animate-spin" />
@@ -1003,7 +1003,7 @@ export default function ProposalsPage() {
         )}
 
         {/* Proposals List */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 px-24">
           {filteredProposals.map((proposal, index) => (
             <InViewMotion key={proposal.id}>
               <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl h-full">
@@ -1057,7 +1057,7 @@ export default function ProposalsPage() {
                     <div className="flex gap-2">
                       {proposal.state === PROPOSAL_STATUS.ACTIVE &&
                         !proposal.user_voted &&
-                        userStakingInfo?.can_vote && (
+                        userMembership?.is_member && (
                           <>
                             <Button
                               onClick={() => handleVote(proposal.id, "yes")}
@@ -1082,7 +1082,7 @@ export default function ProposalsPage() {
                           You voted
                         </Badge>
                       )}
-                      {!userStakingInfo?.can_vote &&
+                      {!userMembership?.is_member &&
                         proposal.state === PROPOSAL_STATUS.ACTIVE && (
                           <Badge className="bg-yellow-900/50 text-yellow-200">
                             Stake to vote
@@ -1172,8 +1172,8 @@ export default function ProposalsPage() {
 
         {/* Blockchain Data Display */}
         {userStakingInfo && (
-          <InViewMotion>
-            <div className="mb-8">
+          <InViewMotion className="px-24">
+            <div className="mb-8 mt-10">
               <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-white">
@@ -1183,14 +1183,14 @@ export default function ProposalsPage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {/* Raw Blockchain Data */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
                     {/* Left Column - Staking Details */}
-                    <div className="space-y-4">
+                    <div className="space-y-4 w-full">
                       <h3 className="text-lg font-semibold text-white mb-3">
                         Smart Contract Data
                       </h3>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg">
+                      <div className="space-y-3 w-full">
+                        <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg w-full">
                           <span className="text-gray-400">
                             Staked APT (Raw)
                           </span>
@@ -1198,7 +1198,7 @@ export default function ProposalsPage() {
                             {userStakingInfo.staked_apt} octas
                           </span>
                         </div>
-                        <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg">
+                        <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg w-full">
                           <span className="text-gray-400">
                             Staked APT (Formatted)
                           </span>
@@ -1209,7 +1209,7 @@ export default function ProposalsPage() {
                             APT
                           </span>
                         </div>
-                        <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg">
+                        <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg w-full">
                           <span className="text-gray-400">
                             Total DAO Staked
                           </span>
@@ -1225,12 +1225,12 @@ export default function ProposalsPage() {
                     </div>
 
                     {/* Right Column - Voting Power Details */}
-                    <div className="space-y-4">
+                    <div className="space-y-4 w-full">
                       <h3 className="text-lg font-semibold text-white mb-3">
                         Voting Power Calculation
                       </h3>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg">
+                      <div className="space-y-3 w-full">
+                        <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg w-full">
                           <span className="text-gray-400">
                             Calculated Power (Raw)
                           </span>
@@ -1238,7 +1238,7 @@ export default function ProposalsPage() {
                             {userStakingInfo.calculated_voting_power} bp
                           </span>
                         </div>
-                        <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg">
+                        <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg w-full">
                           <span className="text-gray-400">Reserved Power</span>
                           <span className="text-white">
                             {(
@@ -1247,7 +1247,7 @@ export default function ProposalsPage() {
                             bp
                           </span>
                         </div>
-                        <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg">
+                        <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg w-full">
                           <span className="text-gray-400">Staked Power</span>
                           <span className="text-white">
                             {(
@@ -1256,7 +1256,7 @@ export default function ProposalsPage() {
                             bp
                           </span>
                         </div>
-                        <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg">
+                        <div className="flex justify-between items-center p-3 bg-gray-900/30 rounded-lg w-full">
                           <span className="text-gray-400">
                             Voting Percentage
                           </span>
