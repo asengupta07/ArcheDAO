@@ -207,7 +207,7 @@ Need custom logic? Fork `archedao.move` and:
 ---
 
 ## Contributing
-We :heart: contributions! To get started:
+We would love contributions! To get started:
 1. Fork → feature branch → PR.
 2. Ensure `npm run lint` & `npm run build` pass in both `client/` and `contracts/`.
 3. For Move changes run `npm run move:test`.

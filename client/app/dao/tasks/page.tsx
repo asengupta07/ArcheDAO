@@ -21,6 +21,7 @@ import {
   Loader2,
   ArrowRight,
 } from "lucide-react";
+import type { UserDAOEcosystem } from "@/types/dao";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
@@ -36,23 +37,138 @@ export default function TasksPage() {
   const router = useRouter();
   const {
     getDAOTasks,
-    getUserCreatedTasks,
     assignTask,
     loading,
     formatAPTAmount,
     formatDeadline,
     isTaskExpired,
+    getCompleteDAOEcosystem,
   } = useTaskManager();
   const [filter, setFilter] = useState("all");
   const [tasks, setTasks] = useState<TaskInfo[]>([]);
-  const [daoId] = useState(1); // Default DAO ID - this should be dynamic in a real app
+  const [daoId, setDaoId] = useState<number | null>(null); // Default DAO ID - this should be dynamic in a real app
+
+  useEffect(() => {
+    const fetchEcosystemData = async () => {
+      if (connected && account) {
+        try {
+          const data = await getCompleteDAOEcosystem();
+          if (data) {
+            // Convert numeric values to strings to match the UserDAOEcosystem type
+            const formattedData: UserDAOEcosystem = {
+              user_address: data.user_address,
+              total_daos_joined: data.total_daos_joined.toString(),
+              total_voting_power: data.total_voting_power.toString(),
+              total_proposals_created: data.total_proposals_created.toString(),
+              total_tasks_created: data.total_tasks_created.toString(),
+              total_votes_cast: data.total_votes_cast.toString(),
+              generated_at: data.generated_at.toString(),
+              daos: data.daos.map((dao) => ({
+                dao_info: {
+                  id: dao.dao_info.id,
+                  dao_code: dao.dao_info.dao_code,
+                  name: dao.dao_info.name,
+                  description: dao.dao_info.description,
+                  creator: dao.dao_info.creator,
+                  governors: dao.dao_info.governors,
+                  members: dao.dao_info.members,
+                  total_staked: dao.dao_info.total_staked.toString(),
+                  governance_token: dao.dao_info.governance_token,
+                  minimum_proposal_threshold:
+                    dao.dao_info.minimum_proposal_threshold.toString(),
+                  voting_period: dao.dao_info.voting_period.toString(),
+                  execution_delay: dao.dao_info.execution_delay.toString(),
+                  proposal_count: dao.dao_info.proposal_count.toString(),
+                  task_count: dao.dao_info.task_count.toString(),
+                  treasury_balance: dao.dao_info.treasury_balance.toString(),
+                  is_active: dao.dao_info.is_active,
+                  created_at: dao.dao_info.created_at.toString(),
+                  member_count: dao.dao_info.member_count,
+                },
+                user_membership: {
+                  is_member: dao.user_membership.is_member,
+                  is_governor: dao.user_membership.is_governor,
+                  is_creator: dao.user_membership.is_creator,
+                  voting_power: dao.user_membership.voting_power.toString(),
+                  join_date: dao.user_membership.join_date.toString(),
+                },
+                proposals: (dao.proposals || []).map((proposal) => ({
+                  id: proposal.id.toString(),
+                  dao_id: proposal.dao_id.toString(),
+                  title: proposal.title,
+                  description: proposal.description,
+                  proposer: proposal.creator,
+                  start_time: proposal.start_time.toString(),
+                  end_time: proposal.end_time.toString(),
+                  execution_time: proposal.execution_time.toString(),
+                  yes_votes: proposal.for_votes.toString(),
+                  no_votes: proposal.against_votes.toString(),
+                  abstain_votes: proposal.abstain_votes.toString(),
+                  total_votes: (
+                    proposal.for_votes +
+                    proposal.against_votes +
+                    proposal.abstain_votes
+                  ).toString(),
+                  state: proposal.state,
+                  linked_aip: null, // Not available in the hook's type
+                  created_at: proposal.created_at.toString(),
+                  user_voted: proposal.user_vote_type !== null,
+                  user_vote: proposal.user_vote_type,
+                })),
+                tasks: (dao.tasks || []).map((task) => ({
+                  id: task.id.toString(),
+                  dao_id: task.dao_id.toString(),
+                  title: task.title,
+                  description: task.description,
+                  creator: task.creator,
+                  assignee: task.assignee,
+                  bounty_amount: task.bounty_amount.toString(),
+                  deadline: task.deadline.toString(),
+                  state: task.state,
+                  created_at: task.created_at.toString(),
+                  user_is_creator: task.user_is_creator,
+                  user_is_assignee: task.user_is_assignee,
+                })),
+                user_proposals_created: dao.user_proposals_created.toString(),
+                user_tasks_created: dao.user_tasks_created.toString(),
+                user_votes_cast: dao.user_votes_cast.toString(),
+                total_voting_power_used: dao.total_voting_power_used.toString(),
+              })),
+            };
+
+            // Set the dao_id to the first DAO's ID if available
+            if (formattedData.daos.length > 0) {
+              setDaoId(formattedData.daos[0].dao_info.id);
+            } else {
+              toast({
+                title: "No DAOs Found",
+                description: "You are not a member of any DAOs.",
+                variant: "destructive",
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching ecosystem data:", error);
+          toast({
+            title: "Error Loading DAOs",
+            description: "Failed to load your DAO information.",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+
+    fetchEcosystemData();
+  }, [connected, account, getCompleteDAOEcosystem]);
 
   // Fetch tasks when component mounts or when account changes
   useEffect(() => {
+    if (!daoId) return;
     const fetchTasks = async () => {
       if (!connected || !account) return;
       
       try {
+        console.log('Fetching tasks for DAO ID:', daoId);
         const daoTasks = await getDAOTasks(daoId);
         setTasks(daoTasks);
       } catch (error) {
