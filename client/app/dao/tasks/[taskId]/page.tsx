@@ -36,6 +36,13 @@ import {
   getTaskStatusColor,
 } from "@/config/contract";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface Comment {
   id: string;
@@ -63,6 +70,9 @@ interface TaskInfo {
   user_is_creator: boolean;
   user_is_assignee: boolean;
   user_is_validator: boolean;
+  required_validations: number;
+  total_validations: number;
+  positive_validations: number;
   // UI fields with optional types since they may not come from API
   requirements?: string;
   deliverables?: string;
@@ -100,6 +110,9 @@ interface TaskApiResponse {
   user_is_creator: boolean;
   user_is_assignee: boolean;
   user_is_validator: boolean;
+  required_validations: number;
+  total_validations: number;
+  positive_validations: number;
 }
 
 // Add a function to handle undefined UI fields
@@ -113,16 +126,28 @@ const getUIValue = (
 // Add a function to transform API data to UI data
 const transformTaskData = (taskData: TaskApiResponse): TaskInfo => ({
   ...taskData,
-  // Initialize UI fields with defaults
-  requirements: taskData.description, // Using description as requirements for now
-  deliverables: "", // Empty string default
-  status: getTaskStatus(taskData.state), // You'll need to implement this function
-  progress: 0,
-  comments: [],
-  createdBy: taskData.creator,
-  estimatedHours: 0,
-  reward: `${taskData.bounty_amount} APT`,
-  category: "Default",
+  // Only keep contract-specific fields
+  id: taskData.id,
+  dao_id: taskData.dao_id,
+  title: taskData.title,
+  description: taskData.description,
+  creator: taskData.creator,
+  assignee: taskData.assignee,
+  bounty_amount: taskData.bounty_amount,
+  required_skills: taskData.required_skills,
+  deadline: taskData.deadline,
+  state: taskData.state,
+  submission_hash: taskData.submission_hash,
+  validators: taskData.validators,
+  validation_results: taskData.validation_results,
+  completion_proof: taskData.completion_proof,
+  created_at: taskData.created_at,
+  user_is_creator: taskData.user_is_creator,
+  user_is_assignee: taskData.user_is_assignee,
+  user_is_validator: taskData.user_is_validator,
+  required_validations: taskData.required_validations,
+  total_validations: taskData.total_validations,
+  positive_validations: taskData.positive_validations,
 });
 
 // Add a helper function to convert state to status
@@ -156,29 +181,44 @@ export default function TaskDetailPage() {
     completion_proof: "",
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
+  const [isValidateDialogOpen, setIsValidateDialogOpen] = useState(false);
 
   // Fetch task data when component mounts
   useEffect(() => {
     const fetchTask = async () => {
-      if (connected && account && taskId) {
-        try {
-          const taskData = await getTask(parseInt(taskId));
-          if (taskData) {
-            setTask(transformTaskData(taskData));
-          }
-        } catch (error) {
-          console.error("Error fetching task:", error);
+      if (!connected || !account || !taskId) return;
+      
+      try {
+        setIsLoading(true);
+        setError(null);
+        const taskData = await getTask(parseInt(taskId));
+        if (taskData) {
+          setTask(transformTaskData(taskData));
+        } else {
+          setError("Task not found");
           toast({
-            title: "Error Loading Task",
-            description: "Failed to load task details from the blockchain.",
+            title: "Task Not Found",
+            description: "The requested task could not be found.",
             variant: "destructive",
           });
         }
+      } catch (error) {
+        console.error("Error fetching task:", error);
+        setError("Failed to load task");
+        toast({
+          title: "Error Loading Task",
+          description: "Failed to load task details from the blockchain.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchTask();
-  }, [connected, account?.address, taskId, getTask]);
+  }, [account?.address, taskId, getTask, connected]);
 
   const handleAssignTask = async () => {
     if (!task) return;
@@ -233,6 +273,7 @@ export default function TaskDetailPage() {
         setTask(transformTaskData(updatedTask));
       }
       setSubmissionData({ submission_hash: "", completion_proof: "" });
+      setIsSubmitDialogOpen(false);
       toast({
         title: "Task Submitted",
         description: "Your work has been submitted for validation.",
@@ -254,6 +295,12 @@ export default function TaskDetailPage() {
     if (!task) return;
     try {
       setIsLoading(true);
+
+      // Verify task is in submitted state
+      if (task.state !== TASK_STATUS.SUBMITTED) {
+        throw new Error("Task must be in submitted state to validate");
+      }
+
       await validateTask(task.id, isValid);
       const updatedTask = await getTask(task.id);
       if (updatedTask) {
@@ -282,6 +329,15 @@ export default function TaskDetailPage() {
     if (!task) return;
     try {
       setIsLoading(true);
+
+      // Verify task is completed and has enough validations
+      if (task.state !== TASK_STATUS.COMPLETED) {
+        throw new Error("Task must be completed to distribute bounty");
+      }
+      if (task.positive_validations < task.required_validations) {
+        throw new Error(`Task needs at least ${task.required_validations} positive validations`);
+      }
+
       await distributeBounty(task.id);
       const updatedTask = await getTask(task.id);
       if (updatedTask) {
@@ -316,63 +372,60 @@ export default function TaskDetailPage() {
     console.log("Add comment not implemented");
   };
 
-  if (!connected) {
+  if (!connected || !account) {
     return (
-      <div className="min-h-screen relative">
-        <div className="fixed inset-0 z-0">
-          <Aurora
-            colorStops={["#8B0000", "#660000", "#8B0000"]}
-            amplitude={1.2}
-            speed={0.3}
-            blend={0.8}
-          />
-        </div>
-        <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
-          <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
-            <CardHeader>
-              <CardTitle className="text-2xl text-white mb-4">
-                Connect Your Wallet
-              </CardTitle>
-              <p className="text-gray-300">
-                Please connect your wallet to view task details.
-              </p>
-            </CardHeader>
-          </Card>
+      <div className="min-h-screen bg-black text-red-50 p-8">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-2xl font-bold mb-4">Connect Your Wallet</h1>
+          <p>Please connect your wallet to view task details.</p>
         </div>
       </div>
     );
   }
 
-  if (!task) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen relative">
-        <div className="fixed inset-0 z-0">
-          <Aurora
-            colorStops={["#8B0000", "#660000", "#8B0000"]}
-            amplitude={1.2}
-            speed={0.3}
-            blend={0.8}
-          />
+      <div className="min-h-screen bg-black text-red-50 p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center space-x-2">
+            <Loader2 className="animate-spin" />
+            <span>Loading task details...</span>
+          </div>
         </div>
-        <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
-          <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
-            <CardHeader>
-              <CardTitle className="text-2xl text-white mb-4">
-                {loading ? (
-                  <>
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                    Loading Task...
-                  </>
-                ) : (
-                  "Task Not Found"
-                )}
-              </CardTitle>
-              <p className="text-gray-300">
-                {loading
-                  ? "Fetching task details from the blockchain..."
-                  : "The requested task could not be found."}
-              </p>
-            </CardHeader>
+      </div>
+    );
+  }
+
+  if (error || !task) {
+    return (
+      <div className="min-h-screen bg-black text-red-50 p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between mb-8">
+            <Button
+              variant="outline"
+              className="bg-red-950/20 border-red-900/40 text-red-50 hover:bg-red-900/40"
+              onClick={() => router.back()}
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+          </div>
+          <Card className="bg-red-950/20 border-red-900/40">
+            <CardContent className="pt-6">
+              <div className="text-center py-8">
+                <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+                <h2 className="text-xl font-semibold mb-2">Task Not Found</h2>
+                <p className="text-red-200">
+                  {error || "The requested task could not be found."}
+                </p>
+                <Button
+                  className="mt-6 bg-red-900/40 hover:bg-red-900/60"
+                  onClick={() => router.push("/dao/tasks")}
+                >
+                  View All Tasks
+                </Button>
+              </div>
+            </CardContent>
           </Card>
         </div>
       </div>
@@ -381,8 +434,9 @@ export default function TaskDetailPage() {
 
   return (
     <div className="min-h-screen relative">
-      <div className="fixed inset-0 z-0">
+      <div className="fixed inset-0 z-0 pointer-events-none">
         <Aurora
+          key="background-aurora"
           colorStops={["#8B0000", "#660000", "#8B0000"]}
           amplitude={1.2}
           speed={0.3}
@@ -436,122 +490,6 @@ export default function TaskDetailPage() {
           </div>
         </InViewMotion>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-2">
-              Required Skills
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {(task.required_skills || []).map(
-                (skill: string, index: number) => (
-                  <Badge key={index} className="bg-red-900/30 text-red-200">
-                    {skill}
-                  </Badge>
-                )
-              )}
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-2">
-              Validators
-            </h3>
-            <div className="space-y-2">
-              {(task.validators || []).length > 0 ? (
-                (task.validators || []).map(
-                  (validator: string, index: number) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-2 text-gray-300"
-                    >
-                      <User className="w-4 h-4" />
-                      <span>
-                        {validator.slice(0, 6)}...{validator.slice(-4)}
-                      </span>
-                      {task.validation_results &&
-                        task.validation_results[validator] !== undefined && (
-                          <Badge
-                            className={
-                              task.validation_results[validator]
-                                ? "bg-green-900/30 text-green-200"
-                                : "bg-red-900/30 text-red-200"
-                            }
-                          >
-                            {task.validation_results[validator]
-                              ? "Approved"
-                              : "Rejected"}
-                          </Badge>
-                        )}
-                    </div>
-                  )
-                )
-              ) : (
-                <p className="text-gray-400">No validators assigned</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {task.state === TASK_STATUS.SUBMITTED && (
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-white mb-2">
-              Submission Details
-            </h3>
-            <div className="space-y-4 bg-white/5 rounded-lg p-4">
-              {task.submission_hash && (
-                <div>
-                  <label className="text-sm text-gray-400">
-                    Submission Hash
-                  </label>
-                  <div className="font-mono text-white break-all">
-                    {task.submission_hash}
-                  </div>
-                </div>
-              )}
-              {task.completion_proof && (
-                <div>
-                  <label className="text-sm text-gray-400">
-                    Completion Proof
-                  </label>
-                  <div className="text-white whitespace-pre-wrap">
-                    {task.completion_proof}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Add validation buttons for validators */}
-        {task.state === TASK_STATUS.SUBMITTED && task.user_is_validator && (
-          <div className="flex gap-4 mb-6">
-            <Button
-              onClick={() => handleValidateTask(true)}
-              className="bg-green-600 hover:bg-green-700"
-              disabled={loading}
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <CheckCircle className="w-4 h-4 mr-2" />
-              )}
-              Approve Submission
-            </Button>
-            <Button
-              onClick={() => handleValidateTask(false)}
-              className="bg-red-600 hover:bg-red-700"
-              disabled={loading}
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <X className="w-4 h-4 mr-2" />
-              )}
-              Reject Submission
-            </Button>
-          </div>
-        )}
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
@@ -571,75 +509,138 @@ export default function TaskDetailPage() {
               </Card>
             </InViewMotion>
 
-            {/* Requirements */}
+            {/* Required Skills */}
             <InViewMotion>
               <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
                 <CardHeader>
                   <CardTitle className="text-xl text-white">
-                    Requirements
+                    Required Skills
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-gray-300">
-                    {getUIValue(task.requirements)}
-                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {task.required_skills.map((skill, index) => (
+                      <Badge
+                        key={index}
+                        className="bg-red-900/30 text-red-200"
+                      >
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             </InViewMotion>
 
-            {/* Deliverables */}
-            <InViewMotion>
-              <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
-                <CardHeader>
-                  <CardTitle className="text-xl text-white">
-                    Deliverables
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <pre className="text-gray-300 whitespace-pre-wrap font-sans">
-                    {getUIValue(task.deliverables)}
-                  </pre>
-                </CardContent>
-              </Card>
-            </InViewMotion>
+            {/* Task Submission Form */}
+            {task.state === TASK_STATUS.ASSIGNED && task.assignee === account.address.toString() && (
+              <InViewMotion>
+                <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
+                  <CardHeader>
+                    <CardTitle className="text-xl text-white">Submit Task</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Dialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button className="w-full bg-green-600 hover:bg-green-700">
+                          <Upload className="w-4 h-4 mr-2" />
+                          Submit Work
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="bg-black/90 border border-red-900/20">
+                        <DialogHeader>
+                          <DialogTitle className="text-xl text-white">Submit Task Work</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 mt-4">
+                          <div>
+                            <label className="text-sm text-gray-400 mb-2 block">
+                              Submission Hash (e.g. IPFS hash, GitHub commit)
+                            </label>
+                            <Input
+                              value={submissionData.submission_hash}
+                              onChange={(e) =>
+                                setSubmissionData((prev) => ({
+                                  ...prev,
+                                  submission_hash: e.target.value,
+                                }))
+                              }
+                              className="bg-black border-red-900/20 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm text-gray-400 mb-2 block">
+                              Completion Proof
+                            </label>
+                            <Textarea
+                              value={submissionData.completion_proof}
+                              onChange={(e) =>
+                                setSubmissionData((prev) => ({
+                                  ...prev,
+                                  completion_proof: e.target.value,
+                                }))
+                              }
+                              className="bg-black border-red-900/20 text-white"
+                              rows={4}
+                            />
+                          </div>
+                          <div className="flex justify-end gap-3 mt-6">
+                            <Button
+                              variant="outline"
+                              onClick={() => setIsSubmitDialogOpen(false)}
+                              className="bg-transparent border-red-900/20 text-white hover:bg-red-950/50"
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              onClick={handleSubmitTask}
+                              className="bg-green-600 hover:bg-green-700"
+                              disabled={loading}
+                            >
+                              {loading ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <Upload className="w-4 h-4 mr-2" />
+                              )}
+                              Submit
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </CardContent>
+                </Card>
+              </InViewMotion>
+            )}
 
-            {/* Progress (if in progress) */}
-            {task.status === "in-progress" && (
+            {/* Submission Details */}
+            {task.state >= TASK_STATUS.SUBMITTED && (
               <InViewMotion>
                 <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
                   <CardHeader>
                     <CardTitle className="text-xl text-white">
-                      Progress
+                      Submission Details
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <div className="flex justify-between text-sm text-gray-300">
-                        <span>Completion</span>
-                        <span>{getUIValue(task.progress, 0)}%</span>
-                      </div>
-                      <div className="h-3 bg-white/10 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-red-900 to-red-700 transition-all duration-300"
-                          style={{ width: `${getUIValue(task.progress, 0)}%` }}
-                        />
-                      </div>
-                      {task.assignee && (
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => handleStatusChange("review")}
-                            className="bg-purple-600 hover:bg-purple-700"
-                            size="sm"
-                          >
-                            Submit for Review
-                          </Button>
-                          <Button
-                            onClick={() => handleStatusChange("completed")}
-                            className="bg-green-600 hover:bg-green-700"
-                            size="sm"
-                          >
-                            Mark Complete
-                          </Button>
+                      {task.submission_hash && (
+                        <div>
+                          <label className="text-sm text-gray-400 mb-2 block">
+                            Submission Hash
+                          </label>
+                          <div className="font-mono text-white break-all bg-white/5 p-3 rounded">
+                            {task.submission_hash}
+                          </div>
+                        </div>
+                      )}
+                      {task.completion_proof && (
+                        <div>
+                          <label className="text-sm text-gray-400 mb-2 block">
+                            Completion Proof
+                          </label>
+                          <div className="text-white whitespace-pre-wrap bg-white/5 p-3 rounded">
+                            {task.completion_proof}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -648,57 +649,145 @@ export default function TaskDetailPage() {
               </InViewMotion>
             )}
 
-            {/* Comments */}
-            <InViewMotion>
-              <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
-                <CardHeader>
-                  <CardTitle className="text-xl text-white">
-                    <MessageSquare className="w-5 h-5 inline mr-2" />
-                    Comments ({task.comments?.length || 0})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {task.comments?.map((comment) => (
-                      <div
-                        key={comment.id}
-                        className="p-4 bg-white/5 rounded-lg"
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-white font-medium font-mono">
-                            {comment.author}
-                          </span>
-                          <span className="text-gray-400 text-sm">
-                            {comment.timestamp}
-                          </span>
-                        </div>
-                        <p className="text-gray-300">{comment.content}</p>
-                      </div>
-                    ))}
+            {/* Validation Section */}
+            {task.state === TASK_STATUS.SUBMITTED && (
+              <InViewMotion>
+                <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
+                  <CardHeader>
+                    <CardTitle className="text-xl text-white">Validation Status</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* Validation Button - Show for anyone who hasn't validated yet */}
+                      {task.state === TASK_STATUS.SUBMITTED && 
+                        account?.address && 
+                        !task.validators.includes(account.address.toString()) && (
+                          <>
+                            <Button
+                              onClick={() => setIsValidateDialogOpen(true)}
+                              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3"
+                            >
+                              <CheckCircle className="w-5 h-5 mr-2" />
+                              Validate This Task
+                            </Button>
 
-                    {/* Add Comment */}
-                    <div className="border-t border-white/10 pt-4">
-                      <Textarea
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        placeholder="Add a comment..."
-                        className="bg-white/5 border-red-900/20 text-white mb-3"
-                        rows={3}
-                      />
-                      <Button
-                        onClick={handleAddComment}
-                        disabled={!newComment.trim()}
-                        className="bg-gradient-to-r from-red-900 to-red-700"
-                        size="sm"
-                      >
-                        <Send className="w-4 h-4 mr-2" />
-                        Post Comment
-                      </Button>
+                            <Dialog open={isValidateDialogOpen} onOpenChange={setIsValidateDialogOpen}>
+                              <DialogContent className="bg-black/90 border border-red-900/20">
+                                <DialogHeader>
+                                  <DialogTitle className="text-xl text-white">Validate Task Submission</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-4 mt-4">
+                                  {/* Submission Details */}
+                                  <div>
+                                    <h3 className="text-white font-semibold mb-2">Submission Hash</h3>
+                                    <div className="font-mono text-sm text-gray-300 bg-white/5 p-3 rounded break-all">
+                                      {task.submission_hash}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <h3 className="text-white font-semibold mb-2">Completion Proof</h3>
+                                    <div className="text-sm text-gray-300 bg-white/5 p-3 rounded whitespace-pre-wrap">
+                                      {task.completion_proof}
+                                    </div>
+                                  </div>
+
+                                  {/* Validation Actions */}
+                                  <div className="flex justify-end gap-3 mt-6">
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => setIsValidateDialogOpen(false)}
+                                      className="bg-transparent border-red-900/20 text-white hover:bg-red-950/50"
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      onClick={() => {
+                                        handleValidateTask(false);
+                                        setIsValidateDialogOpen(false);
+                                      }}
+                                      className="bg-red-600 hover:bg-red-700"
+                                      disabled={loading}
+                                    >
+                                      {loading ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                      ) : (
+                                        <X className="w-4 h-4 mr-2" />
+                                      )}
+                                      Reject
+                                    </Button>
+                                    <Button
+                                      onClick={() => {
+                                        handleValidateTask(true);
+                                        setIsValidateDialogOpen(false);
+                                      }}
+                                      className="bg-green-600 hover:bg-green-700"
+                                      disabled={loading}
+                                    >
+                                      {loading ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                      ) : (
+                                        <CheckCircle className="w-4 h-4 mr-2" />
+                                      )}
+                                      Approve
+                                    </Button>
+                                  </div>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+                          </>
+                      )}
+
+                      {/* Progress Section */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-400">Required Validations</span>
+                        <Badge className="bg-red-950/60 text-red-200">
+                          {task.positive_validations} / {task.required_validations}
+                        </Badge>
+                      </div>
+                      <div className="h-2 bg-red-950/20 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-red-900 to-red-700 transition-all duration-300"
+                          style={{
+                            width: `${(task.positive_validations / task.required_validations) * 100}%`,
+                          }}
+                        />
+                      </div>
+                      
+                      {/* Validators List */}
+                      <div className="space-y-2">
+                        {task.validators.map((validator, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between bg-white/5 p-2 rounded"
+                          >
+                            <span className="font-mono text-gray-300">
+                              {validator.slice(0, 6)}...{validator.slice(-4)}
+                            </span>
+                            {task.validation_results[validator] !== undefined ? (
+                              <Badge
+                                className={
+                                  task.validation_results[validator]
+                                    ? "bg-green-900/30 text-green-200"
+                                    : "bg-red-900/30 text-red-200"
+                                }
+                              >
+                                {task.validation_results[validator]
+                                  ? "Approved"
+                                  : "Rejected"}
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-yellow-900/30 text-yellow-200">
+                                Pending
+                              </Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </InViewMotion>
+                  </CardContent>
+                </Card>
+              </InViewMotion>
+            )}
           </div>
 
           {/* Sidebar */}
@@ -715,9 +804,9 @@ export default function TaskDetailPage() {
                   <div className="flex items-center gap-3">
                     <User className="w-5 h-5 text-gray-400" />
                     <div>
-                      <p className="text-gray-400 text-sm">Assignee</p>
+                      <p className="text-gray-400 text-sm">Creator</p>
                       <p className="text-white font-mono">
-                        {task.assignee || "Unassigned"}
+                        {task.creator.slice(0, 6)}...{task.creator.slice(-4)}
                       </p>
                     </div>
                   </div>
@@ -725,9 +814,13 @@ export default function TaskDetailPage() {
                   <div className="flex items-center gap-3">
                     <User className="w-5 h-5 text-gray-400" />
                     <div>
-                      <p className="text-gray-400 text-sm">Created by</p>
+                      <p className="text-gray-400 text-sm">Assignee</p>
                       <p className="text-white font-mono">
-                        {getUIValue(task.createdBy)}
+                        {task.assignee
+                          ? `${task.assignee.slice(0, 6)}...${task.assignee.slice(
+                              -4
+                            )}`
+                          : "Unassigned"}
                       </p>
                     </div>
                   </div>
@@ -736,16 +829,8 @@ export default function TaskDetailPage() {
                     <Calendar className="w-5 h-5 text-gray-400" />
                     <div>
                       <p className="text-gray-400 text-sm">Deadline</p>
-                      <p className="text-white">{task.deadline}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Clock className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <p className="text-gray-400 text-sm">Estimated Hours</p>
                       <p className="text-white">
-                        {getUIValue(task.estimatedHours)}h
+                        {formatDeadline(task.deadline)}
                       </p>
                     </div>
                   </div>
@@ -753,51 +838,31 @@ export default function TaskDetailPage() {
                   <div className="flex items-center gap-3">
                     <Coins className="w-5 h-5 text-gray-400" />
                     <div>
-                      <p className="text-gray-400 text-sm">Reward</p>
-                      <p className="text-white">{getUIValue(task.reward)}</p>
+                      <p className="text-gray-400 text-sm">Bounty</p>
+                      <p className="text-white">
+                        {formatAPTAmount(task.bounty_amount)} APT
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <Target className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <p className="text-gray-400 text-sm">Category</p>
-                      <p className="text-white">{getUIValue(task.category)}</p>
-                    </div>
-                  </div>
+                  {task.state === TASK_STATUS.COMPLETED &&
+                    task.user_is_creator && (
+                      <Button
+                        onClick={handleDistributeBounty}
+                        className="w-full bg-green-600 hover:bg-green-700 mt-4"
+                        disabled={loading}
+                      >
+                        {loading ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Coins className="w-4 h-4 mr-2" />
+                        )}
+                        Distribute Bounty
+                      </Button>
+                    )}
                 </CardContent>
               </Card>
             </InViewMotion>
-
-            {/* Actions */}
-            {task.assignee && (
-              <InViewMotion>
-                <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl">
-                  <CardHeader>
-                    <CardTitle className="text-xl text-white">
-                      Actions
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <Button
-                      className="w-full bg-blue-600 hover:bg-blue-700"
-                      size="sm"
-                    >
-                      <Upload className="w-4 h-4 mr-2" />
-                      Upload Files
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full border-red-900/20 text-white hover:bg-red-900/20"
-                      size="sm"
-                    >
-                      <Edit className="w-4 h-4 mr-2" />
-                      Edit Task
-                    </Button>
-                  </CardContent>
-                </Card>
-              </InViewMotion>
-            )}
           </div>
         </div>
       </div>
