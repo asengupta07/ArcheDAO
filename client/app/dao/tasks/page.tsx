@@ -108,34 +108,40 @@ export default function TasksPage() {
     const assigneeAddress = task.assignee;
     return (
       <span className="font-mono text-red-100">
-        {assigneeAddress.slice(0, 6)}...{assigneeAddress.slice(-4)}
+        {assigneeAddress.toString().slice(0, 6)}...{assigneeAddress.toString().slice(-4)}
       </span>
     );
   };
 
   const renderValidators = (task: TaskInfo) => {
-    if (!task.validators || task.validators.length === 0) {
+    if (!task.validators || !Array.isArray(task.validators) || task.validators.length === 0) {
       return <span className="text-red-200">No validators yet</span>;
     }
 
     return (
       <div className="space-y-1">
-        {task.validators.map((validator, index) => (
-          <div key={index} className="flex items-center gap-2 text-sm">
-            <User className="w-4 h-4 text-red-300" />
-            <span className="font-mono text-red-100">
-              {validator.slice(0, 6)}...{validator.slice(-4)}
-            </span>
-            {task.validation_results[validator] !== undefined && (
-              <Badge
-                variant="outline"
-                className={task.validation_results[validator] ? "text-green-400" : "text-red-400"}
-              >
-                {task.validation_results[validator] ? "Approved" : "Rejected"}
-              </Badge>
-            )}
-          </div>
-        ))}
+        {task.validators.map((validator, index) => {
+          const validatorAddress = typeof validator === 'string' 
+            ? validator 
+            : String(validator);
+            
+          return (
+            <div key={index} className="flex items-center gap-2 text-sm">
+              <User className="w-4 h-4 text-red-300" />
+              <span className="font-mono text-red-100">
+                {validatorAddress.slice(0, 6)}...{validatorAddress.slice(-4)}
+              </span>
+              {task.validation_results && task.validation_results[validatorAddress] !== undefined && (
+                <Badge
+                  variant="outline"
+                  className={task.validation_results[validatorAddress] ? "text-green-400" : "text-red-400"}
+                >
+                  {task.validation_results[validatorAddress] ? "Approved" : "Rejected"}
+                </Badge>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   };
@@ -335,7 +341,7 @@ export default function TasksPage() {
                 {status === "my-tasks"
                   ? "My Tasks"
                   : status.charAt(0).toUpperCase() +
-                    status.slice(1).replace("-", " ")}
+                    status.toString().slice(1).replace("-", " ")}
               </Button>
             ))}
           </div>
@@ -380,7 +386,7 @@ export default function TasksPage() {
                           <span>Assignee:</span>
                           {renderAssignee(task)}
                         </div>
-                        {task.required_skills.length > 0 && (
+                        {task.required_skills && Array.isArray(task.required_skills) && task.required_skills.length > 0 && (
                           <div className="flex flex-wrap gap-2">
                             {task.required_skills.map((skill, index) => (
                               <Badge

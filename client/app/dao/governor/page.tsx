@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, JSXElementConstructor,  ReactElement, ReactNode, ReactPortal } from "react";
 import {
   Card,
   CardContent,
@@ -487,7 +487,7 @@ export default function GovernancePage() {
 
       toast({
         title: "Member Promoted",
-        description: `Successfully promoted ${memberAddress.slice(0, 8)}...${memberAddress.slice(-8)} to governor.`,
+        description: `Successfully promoted ${memberAddress.toString().slice(0, 8)}...${memberAddress.toString().slice(-8)} to governor.`,
       });
       
       await refreshData();
@@ -539,13 +539,13 @@ export default function GovernancePage() {
 
           toast({
             title: "Member Promoted",
-            description: `Promoted ${memberAddress.slice(0, 8)}...${memberAddress.slice(-8)} to governor.`,
+            description: `Promoted ${memberAddress.toString().slice(0, 8)}...${memberAddress.toString().slice(-8)} to governor.`,
           });
         } catch (error) {
           console.error(`Error promoting ${memberAddress}:`, error);
           toast({
             title: "Promotion Failed",
-            description: `Failed to promote ${memberAddress.slice(0, 8)}...${memberAddress.slice(-8)}.`,
+            description: `Failed to promote ${memberAddress.toString().slice(0, 8)}...${memberAddress.toString().slice(-8)}.`,
             variant: "destructive",
           });
         }
@@ -827,7 +827,7 @@ export default function GovernancePage() {
             )}
             <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-lg">
               <span className="text-red-200/80 font-mono text-sm">
-                {account?.address?.toString().slice(0, 6)}...{account?.address?.toString().slice(-4)}
+                {account?.address?.toString().toString().slice(0, 6)}...{account?.address?.toString().toString().slice(-4)}
               </span>
             </div>
           </div>
@@ -902,7 +902,7 @@ export default function GovernancePage() {
                       <p className="text-sm text-gray-400">Governance Token</p>
                       <p className="text-white font-mono text-sm">
                         {selectedDAO.governance_token ? 
-                          `${selectedDAO.governance_token.slice(0, 8)}...${selectedDAO.governance_token.slice(-8)}` : 
+                          `${selectedDAO.governance_token.toString().slice(0, 8)}...${selectedDAO.governance_token.toString().slice(-8)}` : 
                           'N/A'
                         }
                       </p>
@@ -1245,7 +1245,7 @@ export default function GovernancePage() {
                           </div>
                           <div>
                             <p className="text-white font-mono text-sm">
-                              {governor.slice(0, 8)}...{governor.slice(-8)}
+                              {governor.toString().slice(0, 8)}...{governor.toString().slice(-8)}
                             </p>
                             <div className="flex items-center gap-2 mt-1">
                               {governor === selectedDAO.creator && (
@@ -1293,7 +1293,7 @@ export default function GovernancePage() {
                         <p className="text-gray-400">No proposals found for this DAO.</p>
                       </div>
                     ) : (
-                      proposals.slice(0, 10).map((proposal, index) => (
+                      proposals.slice(0, 10).map((proposal: { title: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; status: number; description: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; proposer: { toString: () => string | any[]; }; id: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; quorum_threshold: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; votes_for: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; total_votes: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; votes_against: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; created_at: number; end_time: number; }, index: React.Key | null | undefined) => (
                         <div
                           key={index}
                           className="p-4 bg-white/5 rounded-lg border border-white/10"
@@ -1311,7 +1311,7 @@ export default function GovernancePage() {
                               </p>
                               <div className="flex items-center gap-4 text-sm">
                                 <span className="text-gray-400">
-                                  Proposer: {proposal.proposer.slice(0, 8)}...{proposal.proposer.slice(-8)}
+                                  Proposer: {proposal.proposer.toString().slice(0, 8)}...{proposal.proposer.toString().slice(-8)}
                                 </span>
                                 <span className="text-gray-400">
                                   ID: {proposal.id}
@@ -1330,25 +1330,25 @@ export default function GovernancePage() {
                               <div
                                 className="bg-green-500"
                                 style={{ 
-                                  width: `${(proposal.votes_for / Math.max(proposal.total_votes, 1)) * 100}%` 
+                                  width: `${(Number(proposal.votes_for || 0) / Math.max(Number(proposal.total_votes || 0), 1)) * 100}%` 
                                 }}
                               />
                               <div
                                 className="bg-red-500"
                                 style={{ 
-                                  width: `${(proposal.votes_against / Math.max(proposal.total_votes, 1)) * 100}%` 
+                                  width: `${(Number(proposal.votes_against || 0) / Math.max(Number(proposal.total_votes || 0), 1)) * 100}%` 
                                 }}
                               />
                             </div>
                             <div className="flex justify-between text-sm mt-2">
                               <span className="text-green-400">
-                                For: {proposal.votes_for}
+                                For: {Number(proposal.votes_for || 0)}
                               </span>
                               <span className="text-red-400">
-                                Against: {proposal.votes_against}
+                                Against: {Number(proposal.votes_against || 0)}
                               </span>
                               <span className="text-gray-400">
-                                Total: {proposal.total_votes}
+                                Total: {Number(proposal.total_votes || 0)}
                               </span>
                             </div>
                           </div>
@@ -1391,7 +1391,7 @@ export default function GovernancePage() {
                         <p className="text-gray-400">No tasks found for this DAO.</p>
                       </div>
                     ) : (
-                      tasks.slice(0, 10).map((task, index) => (
+                      tasks.slice(0, 10).map((task: { title: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; status: number; description: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; creator: { toString: () => string | any[]; }; assignee: { toString: () => string | any[]; }; id: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; reward: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; deadline: number; created_at: number; completed_at: number; }, index: React.Key | null | undefined) => (
                         <div
                           key={index}
                           className="p-4 bg-white/5 rounded-lg border border-white/10"
@@ -1409,11 +1409,11 @@ export default function GovernancePage() {
                               </p>
                               <div className="flex items-center gap-4 text-sm">
                                 <span className="text-gray-400">
-                                  Creator: {task.creator.slice(0, 8)}...{task.creator.slice(-8)}
+                                  Creator: {task.creator.toString().slice(0, 8)}...{task.creator.toString().slice(-8)}
                                 </span>
                                 {task.assignee && (
                                   <span className="text-gray-400">
-                                    Assignee: {task.assignee.slice(0, 8)}...{task.assignee.slice(-8)}
+                                    Assignee: {task.assignee.toString().slice(0, 8)}...{task.assignee.toString().slice(-8)}
                                   </span>
                                 )}
                                 <span className="text-gray-400">
@@ -1427,7 +1427,7 @@ export default function GovernancePage() {
                           <div className="mt-4 grid grid-cols-2 gap-4">
                             <div>
                               <p className="text-sm text-gray-400">Reward</p>
-                              <p className="text-white font-medium">{task.reward} APT</p>
+                              <p className="text-white font-medium">{Number(task.reward || 0)} APT</p>
                             </div>
                             <div>
                               <p className="text-sm text-gray-400">Deadline</p>
@@ -1501,7 +1501,7 @@ export default function GovernancePage() {
                             </div>
                             <div>
                               <p className="text-white font-mono text-sm">
-                                {member.slice(0, 12)}...{member.slice(-12)}
+                                {member.toString().slice(0, 12)}...{member.toString().slice(-12)}
                               </p>
                               <div className="flex items-center gap-2 mt-1">
                                 {isCreator && (

@@ -364,11 +364,11 @@ export const useProposals = (daoId?: string) => {
           function: CONTRACT_FUNCTIONS.CREATE_PROPOSAL,
           typeArguments: [],
           functionArguments: [
-            Number(daoId),
-            title,
-            description,
-            new Uint8Array(), // execution_payload - empty for now
-            linkedAip ? Number(linkedAip) : null, // Optional linked AIP
+            Number(daoId), // dao_id: u64
+            title, // title: String
+            description, // description: String
+            [], // execution_payload: vector<u8> - empty payload
+            linkedAip ? Number(linkedAip) : null // linked_aip: Option<u64>
           ],
         },
       });
