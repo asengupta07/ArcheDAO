@@ -2,6 +2,7 @@
 
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -34,42 +35,42 @@ export default function Home() {
       title: "Multi-DAO Onboarding",
       description:
         "Create dedicated portals by staking minimum 2 APT. Onboard existing or new DAOs with complete governance infrastructure.",
-      color: "from-red-500 to-pink-500",
+      color: "from-red-500 to-red-600",
     },
     {
       icon: Shield,
       title: "Role-Based Governance",
       description:
         "Assign Owners and Governors with customizable voting power distribution between Community and Governors.",
-      color: "from-orange-500 to-red-500",
+      color: "from-red-600 to-red-700",
     },
     {
       icon: Globe,
       title: "Cross-DAO Discovery",
       description:
         "Explore and participate in proposals and events across multiple DAOs based on ROI and personal interests.",
-      color: "from-pink-500 to-purple-500",
+      color: "from-red-500 to-red-700",
     },
     {
       icon: Bot,
       title: "AI Councilors",
       description:
         "Mint on-chain AI personas that reflect your motivations and flag relevant DAO activities with personalized insights.",
-      color: "from-purple-500 to-indigo-500",
+      color: "from-red-400 to-red-600",
     },
     {
       icon: Vote,
       title: "Weighted Voting System",
       description:
         "Fair voting with staked amounts determining weight. Every 10 APT equals 1 vote with normalization for fairness.",
-      color: "from-indigo-500 to-blue-500",
+      color: "from-red-600 to-red-800",
     },
     {
       icon: PartyPopper,
       title: "Events & Rewards",
       description:
         "Participate in raffles, giveaways, and hackathons. AI suggestions retrievable by user address.",
-      color: "from-blue-500 to-cyan-500",
+      color: "from-red-500 to-red-700",
     },
   ];
 
@@ -157,24 +158,23 @@ export default function Home() {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 mt-8">
-            {/* <Button
-              size="lg"
-              className="bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white border-0 shadow-lg shadow-red-500/25 transition-all duration-300 hover:shadow-red-500/40 hover:scale-105"
-              onClick={() => !connected && connect()}
-            >
-              <Wallet className="w-5 h-5 mr-2" />
-              {connected
-                ? `Connected: ${account?.address?.toString().slice(0, 6)}...`
-                : "Connect Wallet"}
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Button> */}
-            <Button
-              size="lg"
-              variant="outline"
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm transition-all duration-300 hover:scale-105"
-            >
-              Explore DAOs
-            </Button>
+            <Link href="/dao/dashboard">
+              <Button
+                size="lg"
+                className="bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white border-0 shadow-lg shadow-red-500/25 transition-all duration-300 hover:shadow-red-500/40 hover:scale-105"
+              >
+                My DAO
+              </Button>
+            </Link>
+            <Link href="/invite">
+              <Button
+                size="lg"
+                variant="outline"
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm transition-all duration-300 hover:scale-105"
+              >
+                Explore DAOs
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
@@ -202,7 +202,7 @@ export default function Home() {
                 <InViewMotion key={index}>
                   <Card className="bg-white/5 border border-red-400/20 backdrop-blur-xl shadow-xl shadow-red-500/10 hover:shadow-red-500/20 transition-all duration-500 hover:scale-105 hover:bg-white/10 group">
                     <CardHeader className="text-center pb-4">
-                      <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-red-500 to-pink-500 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-red-500 to-red-700 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                         <Icon className="w-8 h-8 text-white" />
                       </div>
                       <div className="text-3xl font-bold text-red-400 mb-2">
@@ -385,13 +385,15 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
-              size="lg"
-              className="bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white border-0 shadow-lg shadow-red-500/25 transition-all duration-300 hover:shadow-red-500/40 hover:scale-105"
-            >
-              <Castle className="w-5 h-5 mr-2" />
-              Create Your DAO Portal
-            </Button>
+            <Link href="/onboarding">
+              <Button
+                size="lg"
+                className="bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white border-0 shadow-lg shadow-red-500/25 transition-all duration-300 hover:shadow-red-500/40 hover:scale-105"
+              >
+                <Castle className="w-5 h-5 mr-2" />
+                Create Your DAO Portal
+              </Button>
+            </Link>
             <Button
               size="lg"
               variant="outline"
