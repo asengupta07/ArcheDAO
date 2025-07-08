@@ -222,4 +222,4 @@ Apache 2.0 for contracts & MIT for the web client. See individual `LICENSE` file
 
 ---
 
-<h3 align="center">Built with ❤️ in Kolkata for the Build On Aptos Hackathon 2024</h3> 
+<h3 align="center">Built with ❤️ in Kolkata for the Build On Aptos Hackathon 2025</h3> 
