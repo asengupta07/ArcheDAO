@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import InViewMotion from "@/components/InViewMotion";
-import { Aurora } from "@/components/aurora";
+
+import { GradientBackground } from "@/components/ui/gradient-background";
 import {
   Users,
   Vote,
@@ -115,7 +116,10 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
-  const [selectedDAO, setSelectedDAO] = useState<{ id: string; name: string } | null>(null);
+  const [selectedDAO, setSelectedDAO] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Initialize Aptos client
   useEffect(() => {
@@ -294,12 +298,7 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen relative">
         <div className="fixed inset-0 z-0">
-          <Aurora
-            colorStops={["#8B0000", "#660000", "#8B0000"]}
-            amplitude={1.2}
-            speed={0.3}
-            blend={0.8}
-          />
+          <GradientBackground />
         </div>
         <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
           <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
@@ -321,12 +320,7 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen relative">
         <div className="fixed inset-0 z-0">
-          <Aurora
-            colorStops={["#8B0000", "#660000", "#8B0000"]}
-            amplitude={1.2}
-            speed={0.3}
-            blend={0.8}
-          />
+          <GradientBackground />
         </div>
         <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
           <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
@@ -352,12 +346,7 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen relative">
         <div className="fixed inset-0 z-0">
-          <Aurora
-            colorStops={["#8B0000", "#660000", "#8B0000"]}
-            amplitude={1.2}
-            speed={0.3}
-            blend={0.8}
-          />
+          <GradientBackground />
         </div>
         <div className="relative z-10 container mx-auto px-4 py-16 flex items-center justify-center">
           <Card className="bg-white/5 border-red-400/20 backdrop-blur-xl p-8 text-center max-w-lg">
@@ -413,12 +402,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen relative">
       <div className="fixed inset-0 z-0">
-        <Aurora
-          colorStops={["#8B0000", "#660000", "#8B0000"]}
-          amplitude={1.2}
-          speed={0.3}
-          blend={0.8}
-        />
+        <GradientBackground />
       </div>
 
       <div className="relative z-10 container mx-auto px-4 py-[8rem] mt-6">
@@ -579,7 +563,7 @@ export default function DashboardPage() {
                       const firstDAO = userEcosystem.daos[0];
                       setSelectedDAO({
                         id: firstDAO.dao_info.id.toString(),
-                        name: firstDAO.dao_info.name
+                        name: firstDAO.dao_info.name,
                       });
                       setIsChatOpen(true);
                     }}

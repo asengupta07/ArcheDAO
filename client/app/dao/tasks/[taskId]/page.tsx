@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import InViewMotion from "@/components/InViewMotion";
-import { Aurora } from "@/components/aurora";
+
+import { GradientBackground } from "@/components/ui/gradient-background";
 import {
   ArrowLeft,
   User,
@@ -436,14 +437,8 @@ export default function TaskDetailPage() {
 
   return (
     <div className="min-h-screen relative">
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <Aurora
-          key="background-aurora"
-          colorStops={["#8B0000", "#660000", "#8B0000"]}
-          amplitude={1.2}
-          speed={0.3}
-          blend={0.8}
-        />
+      <div className="fixed inset-0 z-0">
+        <GradientBackground />
       </div>
 
       <div className="relative z-10 container mx-auto px-4 py-[8rem] mt-6">
